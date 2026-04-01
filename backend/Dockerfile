@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libspatialindex-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (Expects requirements.txt at the build context root)
-COPY requirements.txt .
+# Install Python dependencies
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project
-COPY . .
+COPY backend/ /app/
 
 # Expose port
 EXPOSE 8000
