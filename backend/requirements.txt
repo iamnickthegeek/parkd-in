@@ -30,3 +30,5 @@ pandas>=2.0.0
 python-jose[cryptography]>=3.3.0
 pydantic>=2.0.0
 # This code satisfies PH6-047. No additional functionality added.
+# Required by FastAPI for form data / multipart parsing.
+python-multipart>=0.0.9
