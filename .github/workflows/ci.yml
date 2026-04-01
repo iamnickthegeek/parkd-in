@@ -1,0 +1,43 @@
+# PH6-050 — Create GitHub Actions CI workflow for lint, test, and deploy.
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system deps
+        run: sudo apt-get install -y libgdal-dev gdal-bin libspatialindex-dev
+      - name: Install Python deps
+        run: pip install -r predictive_parking/backend/requirements.txt
+      - name: Ruff check
+        run: cd predictive_parking && ruff check backend/
+      - name: Black check
+        run: cd predictive_parking && black --check backend/
+      - name: Mypy
+        run: cd predictive_parking && PYTHONPATH=backend mypy --strict backend/app/
+      - name: Pytest
+        run: cd predictive_parking && PYTHONPATH=backend pytest backend/tests/ -x -v
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          SECRET_KEY: test_secret_key_for_ci_only_32chars
+          ENVIRONMENT: development
+
+  deploy:
+    needs: lint-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Render
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"

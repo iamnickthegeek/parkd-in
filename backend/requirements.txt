@@ -1,0 +1,32 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+sqlalchemy>=2.0.0
+geoalchemy2>=0.14.0
+psycopg2-binary>=2.9.0
+redis>=5.0.0
+pydantic-settings>=2.2.0
+apscheduler>=3.10.0
+requests>=2.31.0
+geopandas>=0.14.0
+shapely>=2.0.0
+pyjwt>=2.8.0
+pytest>=8.0.0
+httpx>=0.27.0
+alembic>=1.13.0
+osmnx>=1.9.0
+# SCA-003 — Add sentry-sdk[fastapi] for Observability Phase 2.
+sentry-sdk[fastapi]>=2.0.0
+# This code satisfies SCA-003. No additional functionality added.
+# SCA-006 — Add upstash-redis HTTP client for Phase 3 write queue.
+upstash-redis>=1.1.0
+# This code satisfies SCA-006. No additional functionality added.
+# SCA-011 — Add boto3 for S3-compatible Cloudflare R2 uploads (Phase 4).
+boto3>=1.34.0
+# This code satisfies SCA-011. No additional functionality added.
+# PH6-047 — Add Phase 6 ingestion and security dependencies.
+tenacity>=8.2.0
+pyproj>=3.6.0
+pandas>=2.0.0
+python-jose[cryptography]>=3.3.0
+pydantic>=2.0.0
+# This code satisfies PH6-047. No additional functionality added.
