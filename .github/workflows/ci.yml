@@ -18,15 +18,15 @@ jobs:
       - name: Install system deps
         run: sudo apt-get install -y libgdal-dev gdal-bin libspatialindex-dev
       - name: Install Python deps
-        run: pip install -r predictive_parking/backend/requirements.txt
+        run: pip install -r backend/requirements.txt
       - name: Ruff check
-        run: cd predictive_parking && ruff check backend/
+        run: ruff check backend/
       - name: Black check
-        run: cd predictive_parking && black --check backend/
+        run: black --check backend/
       - name: Mypy
-        run: cd predictive_parking && PYTHONPATH=backend mypy --strict backend/app/
+        run: PYTHONPATH=backend mypy --strict backend/app/
       - name: Pytest
-        run: cd predictive_parking && PYTHONPATH=backend pytest backend/tests/ -x -v
+        run: PYTHONPATH=backend pytest backend/tests/ -x -v
         env:
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
