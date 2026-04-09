@@ -4,6 +4,23 @@ It exports the engine, a session factory, and a FastAPI dependency provider.
 Relies on: sqlalchemy, psycopg2-binary.
 """
 
+# CRITICAL: Patch psycopg2 hstore BEFORE any SQLAlchemy imports.
+# SQLAlchemy's psycopg2 dialect calls HstoreAdapter.get_oids() on every new
+# connection, which queries pg_type and causes connection drops over PgBouncer.
+import psycopg2.extras
+
+_original_get_oids = psycopg2.extras.HstoreAdapter.get_oids
+
+
+@staticmethod
+def _patched_get_oids(conn):
+    """Return empty OIDs — we don't use hstore and this avoids the pg_type query."""
+    return None
+
+
+psycopg2.extras.HstoreAdapter.get_oids = _patched_get_oids
+
+# Now safe to import SQLAlchemy
 from typing import Generator
 
 from sqlalchemy import create_engine
@@ -11,18 +28,21 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
-# Create the SQLAlchemy engine using the DSN from settings.
-# pool_pre_ping is used to check connection health before use, pool_size is tuned for PgBouncer.
-# Strip ?pgbouncer=true if present — it's only for SQLAlchemy's async mode, not for psycopg2 DSN.
+# Strip ?pgbouncer=true if present — PgBouncer transaction pooling incompatible with some features.
 db_url = settings.SUPABASE_DATABASE_URL.split("?")[0]
+
 engine = create_engine(
     db_url,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
     pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={
+        "connect_timeout": 10,
+        "sslmode": "disable",
+    },
 )
 
-# sessionmaker returns a class that maintains database sessions.
 SessionLocal: sessionmaker[Session] = sessionmaker(
     autoflush=False,
     autocommit=False,

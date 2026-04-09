@@ -47,10 +47,16 @@ async def startup_event() -> None:
     """
     Handle application startup hooks.
 
-    Initializes the background scheduler to start periodic prediction
-    cache refreshes.
+    In LOCAL_MODE the scheduler is disabled — no background jobs hit
+    Supabase/R2/Redis. Tiles are served from disk via the tile endpoint.
     """
-    start_scheduler()
+    if not settings.LOCAL_MODE:
+        start_scheduler()
+    else:
+        import logging
+        logging.getLogger(__name__).info(
+            "LOCAL_MODE=true — background scheduler disabled."
+        )
 
 
 @app.get("/health")

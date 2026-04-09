@@ -10,7 +10,7 @@
  * In a production setup, this would be injected via a build step or proxy.
  * @constant {string}
  */
-mapboxgl.accessToken = "REPLACE_ME_VIA_ENV";
+mapboxgl.accessToken = "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21uOWd3dmx2MDd2MDJzcXl0Nno5czdzbSJ9.736RofO3J5RUSzyLXT69PQ";
 
 /** @type {mapboxgl.Map} */
 let map;
@@ -22,39 +22,24 @@ let currentPopupSegmentId = null;
 let currentPopupLngLat = null;
 
 /**
- * Public Cloudflare R2 base URL for pre-generated MVT tiles.
- * Fetched from the /api/v1/health endpoint at runtime.
- * Falls back to a development placeholder if the API is unavailable.
+ * Tile URL proxied through the backend to avoid CORS issues with R2.
+ * Must be absolute URL because Mapbox GL JS workers can't resolve relative URLs
+ * when the frontend is served from a different origin.
  * @type {string}
  */
-let R2_TILES_URL = "/api/v1/tiles/{z}/{x}/{y}.pbf";
+let R2_TILES_URL = "http://localhost:8000/api/v1/tiles/{z}/{x}/{y}.pbf";
 
-/**
- * Fetch tile URL from the health endpoint config.
- * @returns {Promise<void>}
- */
-async function fetchTileUrl() {
-  try {
-    const res = await fetch("/api/v1/health");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.r2_public_url) {
-        R2_TILES_URL = `${data.r2_public_url}/tiles/{z}/{x}/{y}.pbf`;
-      }
-    }
-  } catch {
-    // Fallback to default — map still works with local or proxied tiles.
-  }
-}
 
 /**
  * Acquire or retrieve a cached anonymous JWT token from sessionStorage.
  * @returns {Promise<string>} JWT access token.
  */
+const API_BASE = "http://localhost:8000/api/v1";
+
 async function ensureToken() {
   let token = sessionStorage.getItem("parkd_token");
   if (!token) {
-    const res = await fetch("/api/v1/auth/anonymous", { method: "POST" });
+    const res = await fetch(`${API_BASE}/auth/anonymous`, { method: "POST" });
     token = (await res.json()).access_token;
     sessionStorage.setItem("parkd_token", token);
   }
@@ -68,7 +53,7 @@ async function ensureToken() {
 async function reportEvent(eventType) {
   const token = await ensureToken();
   const center = map.getCenter();
-  const res = await fetch("/api/v1/parking/event", {
+  const res = await fetch(`${API_BASE}/parking/event`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -97,7 +82,7 @@ async function reportEvent(eventType) {
  * @param {mapboxgl.LngLatLike} lngLat - Popup coordinates.
  */
 async function fetchAndShowPopup(segmentId, windowMin, lngLat) {
-  const res = await fetch(`/api/v1/parking/segment/${segmentId}`);
+  const res = await fetch(`${API_BASE}/parking/segment/${segmentId}`);
   if (!res.ok) return;
   const data = await res.json();
   const probKey = `probability_${windowMin}min`;
@@ -132,9 +117,8 @@ function initMap() {
   map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
   // SCA-016 — Switch to vector tile source served from Cloudflare R2.
-  map.on("load", async () => {
+  map.on("load", () => {
     console.log("[Parkd-In] Map Loaded. Attaching R2 vector tile source...");
-    await fetchTileUrl();
     setupMapLayers();
   });
 }

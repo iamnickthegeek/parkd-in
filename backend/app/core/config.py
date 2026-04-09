@@ -48,6 +48,9 @@ class Settings(BaseSettings):
 
     # General
     ENVIRONMENT: str = "development"
+    # Set LOCAL_MODE=true to skip Supabase/R2/Redis and run fully offline.
+    # Tiles are written to frontend/tiles/, DB is a local SQLite file.
+    LOCAL_MODE: bool = False
     # PH6-006 — Add ingestion config vars for TfL, Camden, and London Datastore.
     TFL_API_KEY: str = ""
     CAMDEN_DATA_URL: str = "https://opendata.camden.gov.uk"

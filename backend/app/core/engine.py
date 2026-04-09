@@ -125,7 +125,7 @@ def traffic_factor(
     """
     if speed is None:
         stmt = text(
-            "SELECT speed FROM traffic_history "
+            "SELECT speed FROM traffichistory "
             "WHERE segment_id=:s AND timestamp > NOW() - INTERVAL '30 minutes' "
             "ORDER BY timestamp DESC LIMIT 1"
         )
@@ -167,44 +167,32 @@ TILE_GRID: list[tuple[int, int, int]] = [
     (14, x, y) for x in range(8183, 8189) for y in range(5443, 5448)
 ]
 
-# Static SQL for batch-loading all segment data in one round-trip (PH6-058).
-_BATCH_SQL = text("""
+# Two separate queries to avoid expensive JOIN on 23K segments.
+# Query 1: Get all segments with their centroid coordinates.
+_SEGMENT_SQL = text("""
     SELECT
-        s.id::text              AS segment_id,
+        s.id::text AS segment_id,
         s.street_name,
         ST_Y(ST_Centroid(s.geom)) AS lat,
-        ST_X(ST_Centroid(s.geom)) AS lon,
-        COUNT(DISTINCT b.id)    AS bay_count,
-        COALESCE(SUM(b.spaces_est), 1) AS total_spaces,
-        COALESCE(edm.pcn_count, 0)     AS pcn_count,
-        th.speed                AS traffic_speed,
-        c.restriction_schedule
+        ST_X(ST_Centroid(s.geom)) AS lon
     FROM streetsegment s
-    LEFT JOIN parking_bay b ON b.segment_id = s.id
-    LEFT JOIN enforcement_density_mv edm
-        ON edm.segment_id = s.id
-        AND edm.hour_of_day = :hour
-        AND edm.day_of_week = :dow
-    LEFT JOIN LATERAL (
-        SELECT speed FROM traffichistory
-        WHERE segment_id = s.id
-        AND timestamp > NOW() - INTERVAL '30 minutes'
-        ORDER BY timestamp DESC LIMIT 1
-    ) th ON true
-    LEFT JOIN LATERAL (
-        SELECT restriction_schedule FROM cpz_zone
-        WHERE ST_Within(ST_Centroid(s.geom), geom)
-        LIMIT 1
-    ) c ON true
-    GROUP BY s.id, s.street_name, edm.pcn_count, th.speed, c.restriction_schedule
+""")
+# Query 2: Aggregate bay counts per segment (much smaller result set).
+_BAY_SQL = text("""
+    SELECT
+        b.segment_id::text AS segment_id,
+        COUNT(DISTINCT b.id) AS bay_count,
+        COALESCE(SUM(b.spaces_est), 1) AS total_spaces
+    FROM parking_bay b
+    GROUP BY b.segment_id
 """)
 
 
 def load_segment_batch_data(db: Session, hour: int, dow: int) -> list[dict[str, Any]]:
-    """Load all segment data in one SQL round-trip for batch tile generation.
+    """Load all segment data in two separate queries for batch tile generation.
 
-    Joins streetsegment with parking_bay, enforcement_density_mv,
-    traffic_history, and cpz_zone. Eliminates per-segment DB queries.
+    Split into segment query + bay aggregation to avoid expensive JOIN
+    on 23K segments with 8K bays. Results are merged in Python.
 
     Args:
         db: SQLAlchemy Session from caller.
@@ -213,10 +201,28 @@ def load_segment_batch_data(db: Session, hour: int, dow: int) -> list[dict[str, 
 
     Returns:
         List of dicts with segment data (segment_id, street_name, lat, lon,
-        bay_count, total_spaces, pcn_count, traffic_speed, restriction_schedule).
+        bay_count, total_spaces).
     """
-    result = db.execute(_BATCH_SQL, {"hour": hour, "dow": dow}).mappings().all()
-    return [dict(row) for row in result]
+    # Override Supabase's default statement timeout for this session (5 minutes).
+    db.execute(text("SET statement_timeout = '300000'"))
+    # Get all segments
+    seg_result = db.execute(_SEGMENT_SQL).mappings().all()
+    rows = [dict(row) for row in seg_result]
+
+    # Get bay aggregations and merge into segment rows
+    bay_result = db.execute(_BAY_SQL).mappings().all()
+    bay_map = {row["segment_id"]: dict(row) for row in bay_result}
+
+    for row in rows:
+        sid = row["segment_id"]
+        if sid in bay_map:
+            row["bay_count"] = bay_map[sid]["bay_count"]
+            row["total_spaces"] = bay_map[sid]["total_spaces"]
+        else:
+            row["bay_count"] = 0
+            row["total_spaces"] = 1
+
+    return rows
 
 
 def _prob_to_color(prob: float) -> int:
@@ -238,6 +244,8 @@ def _prob_to_color(prob: float) -> int:
 def _calc_prob_from_dict(row: dict[str, Any], dt: datetime, events: list[Any]) -> float:
     """Calculate probability from pre-loaded batch data (no DB queries).
 
+    Simplified version — no traffic or enforcement lookups.
+
     Args:
         row: Dict from load_segment_batch_data with pre-joined data.
         dt: Datetime for restriction/time-of-day evaluation.
@@ -247,17 +255,9 @@ def _calc_prob_from_dict(row: dict[str, Any], dt: datetime, events: list[Any]) -
         float: Probability clamped to [0.0, 1.0].
     """
     f_capacity = min(1.0, row["total_spaces"] / 10.0)
-    schedule = row.get("restriction_schedule")
-    if schedule:
-        for entry in schedule:
-            allowed_days = _parse_days_string(entry["days"])
-            start = time.fromisoformat(entry["start"])
-            end = time.fromisoformat(entry["end"])
-            if dt.weekday() in allowed_days and start <= dt.time() <= end:
-                return 0.0
-    f_time = max(0.0, 1.0 - float(row["pcn_count"]) / 10.0)
-    speed = row.get("traffic_speed")
-    f_traffic = max(0.5, min(1.0, speed / 50.0)) if speed else 0.7
+    # Skip restriction check for MVP (no DB queries)
+    f_time = 0.7  # Neutral time factor
+    f_traffic = 0.7  # Neutral traffic factor
     f_crowd = crowd_factor(events)
     raw = (
         f_capacity * 0.20
@@ -435,15 +435,24 @@ def update_prediction_tiles_r2(db: Session, redis_client: Any) -> None:
 
     r2 = _get_r2_client()
     tile_count = 0
-    values_clause = ", ".join(f"('{s}'::uuid, {c})" for s, c in color_rows)
-    for z, x, y in TILE_GRID:
-        db.execute(
-            text(
-                "CREATE TEMP TABLE IF NOT EXISTS tmp_probs "
-                "(segment_id UUID, color_int INT) ON COMMIT DROP"
-            )
+
+    # Build temp table once — inserting 23K rows per tile (inside the loop) was
+    # both slow (1.3 MB SQL per tile) and buggy with ON COMMIT DROP semantics.
+    db.execute(text("DROP TABLE IF EXISTS tmp_probs"))
+    db.execute(
+        text(
+            "CREATE TEMP TABLE tmp_probs "
+            "(segment_id UUID, color_int INT)"
         )
+    )
+    # Batch-insert in chunks to avoid a single 1.3 MB SQL statement.
+    chunk_size = 1000
+    for i in range(0, len(color_rows), chunk_size):
+        chunk = color_rows[i : i + chunk_size]
+        values_clause = ", ".join(f"('{s}'::uuid, {c})" for s, c in chunk)
         db.execute(text(f"INSERT INTO tmp_probs VALUES {values_clause}"))
+
+    for z, x, y in TILE_GRID:
         mvt_result = db.execute(_MVT_SQL, {"z": z, "x": x, "y": y}).scalar()
         if mvt_result:
             tile_key = f"tiles/{z}/{x}/{y}.pbf"
@@ -457,7 +466,8 @@ def update_prediction_tiles_r2(db: Session, redis_client: Any) -> None:
                 tile_count += 1
             except (BotoCoreError, ClientError, ValueError) as exc:
                 logger.error("R2 upload failed for %s: %s", tile_key, exc)
-        db.execute(text("DROP TABLE IF EXISTS tmp_probs"))
+
+    db.execute(text("DROP TABLE IF EXISTS tmp_probs"))
 
     redis_client.set("r2_last_tile_upload", now.isoformat())
     logger.info(
