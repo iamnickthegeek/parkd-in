@@ -37,7 +37,7 @@ except ImportError as e:
 # Config
 # ---------------------------------------------------------------------------
 CACHE_PATH = pathlib.Path(__file__).parent / "cache" / "camden_osm.parquet"
-TILE_DIR = pathlib.Path(__file__).parent / "frontend" / "tiles"
+TILE_DIR = pathlib.Path(__file__).parent / "public" / "tiles"
 ZOOM = 14
 
 # Camden tile grid at zoom 14 (same as engine.py TILE_GRID)
@@ -255,9 +255,8 @@ def main() -> None:
     print(f"\nDone: {written} tiles written, {skipped} empty tiles skipped")
     print(f"Tile directory: {TILE_DIR.resolve()}")
     print("\nNext steps:")
-    print("  1. Set LOCAL_MODE=true in .env")
-    print("  2. uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload")
-    print("  3. Open http://localhost:3000  (tiles served via /api/v1/tiles/)")
+    print("  1. git add public/tiles/ && git commit && git push")
+    print("  2. Vercel auto-deploys — tiles served at /tiles/{z}/{x}/{y}.pbf")
 
 
 if __name__ == "__main__":
