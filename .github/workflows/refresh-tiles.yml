@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install geopandas mapbox-vector-tile pyarrow pyproj shapely
+        run: pip install mapbox-vector-tile requests
 
       - name: Generate tiles
         run: python generate_tiles_local.py

@@ -1,258 +1,167 @@
 """
-Local tile generator — no Supabase, no R2, no Redis required.
+Parkd-In tile generator.
 
-Reads the OSM road network from the local Parquet cache, assigns a
-heuristic parking probability to every segment, and writes .pbf tiles
-to frontend/tiles/{z}/{x}/{y}.pbf so they can be served by the FastAPI
-backend in LOCAL_MODE or directly by python -m http.server.
+Downloads road geometry directly from the Mapbox Streets v8 vector tiles and
+re-encodes them with parking-probability colours.  Because the source geometry
+IS the same data Mapbox uses to render the base map, the coloured segments are
+guaranteed to sit exactly on the roads.
 
 Usage:
     cd predictive_parking
     python generate_tiles_local.py
 
 Output:
-    frontend/tiles/14/<x>/<y>.pbf  (30 tiles covering Camden at zoom 14)
+    public/tiles/14/<x>/<y>.pbf  (19 tiles covering Camden at zoom 14)
 """
 
-import math
 import pathlib
-import struct
 import sys
+import time
 
-# ---------------------------------------------------------------------------
-# Deps check
-# ---------------------------------------------------------------------------
 try:
-    import geopandas as gpd
     import mapbox_vector_tile
-    from shapely.geometry import box, mapping
-    from shapely.ops import substring, transform as shapely_transform
-    import pyproj
+    import requests
 except ImportError as e:
     print(f"Missing dependency: {e}")
-    print("Run: pip install geopandas mapbox-vector-tile pyproj shapely pyarrow")
+    print("Run: pip install mapbox-vector-tile requests")
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-CACHE_PATH = pathlib.Path(__file__).parent / "cache" / "camden_osm.parquet"
 TILE_DIR = pathlib.Path(__file__).parent / "public" / "tiles"
 ZOOM = 14
 
-# Camden tile grid at zoom 14 (same as engine.py TILE_GRID)
+# Camden tile grid at zoom 14
 TILE_GRID = [(ZOOM, x, y) for x in range(8183, 8189) for y in range(5443, 5448)]
 
-# Colour constants (hex int) matching engine.py
-GREEN  = 0x00AA00  # prob >= 0.7
-YELLOW = 0xFFAA00  # prob >= 0.3
-RED    = 0xCC0000  # prob < 0.3
+MAPBOX_TOKEN = (
+    "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21uOWd3dmx2MDd2MDJzcXl0Nno5czdzbSJ9"
+    ".736RofO3J5RUSzyLXT69PQ"
+)
+MAPBOX_TILESET = "mapbox.mapbox-streets-v8"
 
-# ---------------------------------------------------------------------------
-# Tile math helpers
-# ---------------------------------------------------------------------------
-def tile_bounds_wgs84(z: int, x: int, y: int) -> tuple[float, float, float, float]:
-    """Return (west, south, east, north) in WGS84 degrees for a tile."""
-    n = 2 ** z
-    west  = x / n * 360.0 - 180.0
-    east  = (x + 1) / n * 360.0 - 180.0
-    lat_n = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
-    lat_s = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
-    return (west, lat_s, east, lat_n)
-
-
-def wgs84_to_tile_coords(
-    lon: float, lat: float,
-    west: float, south: float, east: float, north: float,
-    extent: int = 4096,
-) -> tuple[int, int]:
-    """Map WGS84 lon/lat to tile pixel coordinates (origin = top-left)."""
-    tx = int((lon - west) / (east - west) * extent)
-    ty = int((north - lat) / (north - south) * extent)
-    return (tx, ty)
-
-
-def linestring_to_tile_coords(
-    geom,  # shapely LineString in WGS84
-    west: float, south: float, east: float, north: float,
-    extent: int = 4096,
-) -> list[tuple[int, int]]:
-    """Convert a WGS84 LineString to tile pixel coordinate list."""
-    coords = []
-    for lon, lat in geom.coords:
-        tx, ty = wgs84_to_tile_coords(lon, lat, west, south, east, north, extent)
-        coords.append((tx, ty))
-    return coords
+# Mapbox Streets road class → (hex color, probability %)
+# Classes we care about for on-street parking:
+PARK_CLASSES: dict[str, tuple[str, int]] = {
+    "street":         ("00AA00", 75),   # local residential streets — high availability
+    "street_limited": ("FFAA00", 50),   # limited-access local streets
+    "service":        ("00AA00", 75),   # service roads, car parks
+    "tertiary":       ("FFAA00", 50),   # tertiary roads
+    "secondary":      ("FFAA00", 50),   # secondary roads
+    "primary":        ("CC0000", 25),   # primary roads — low availability
+    "primary_link":   ("CC0000", 25),
+    "trunk":          ("CC0000", 15),   # trunk roads — very low
+}
 
 
 # ---------------------------------------------------------------------------
-# Load + prepare segments
+# Download
 # ---------------------------------------------------------------------------
-def load_segments() -> gpd.GeoDataFrame:
-    """Load cached OSM parquet, split long edges, reproject to WGS84."""
-    print(f"Loading OSM cache from {CACHE_PATH}...")
-    gdf = gpd.read_parquet(str(CACHE_PATH))  # EPSG:27700
-
-    # Split edges > 100m into ~75m chunks (mirrors osm_loader.segment_edges)
-    segments = []
-    for _, row in gdf.iterrows():
-        geom = row.geometry
-        if geom is None:
-            continue
-        length = geom.length
-        name = row.get("name")
-        highway = row.get("highway")
-        if isinstance(name, list):
-            name = name[0] if name else None
-        if isinstance(highway, list):
-            highway = highway[0] if highway else None
-
-        if length > 100:
-            n_chunks = int(length // 75) + 1
-            chunk_len = length / n_chunks
-            for i in range(n_chunks):
-                sub = substring(geom, i * chunk_len, min((i + 1) * chunk_len, length))
-                segments.append({"street_name": name, "highway": highway,
-                                  "length_m": chunk_len, "geometry": sub})
-        else:
-            segments.append({"street_name": name, "highway": highway,
-                              "length_m": length, "geometry": geom})
-
-    result = gpd.GeoDataFrame(segments, crs=gdf.crs)
-    result = result.to_crs(epsg=4326)
-    print(f"  {len(result)} segments after splitting")
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Probability heuristic (pure Python, no DB)
-# ---------------------------------------------------------------------------
-def assign_probabilities(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Assign a deterministic heuristic probability to each segment.
-
-    Uses road type as a proxy for parking availability:
-      residential / living_street / unclassified → high (green)
-      tertiary / secondary                        → medium (yellow)
-      primary / trunk / motorway / cycleway       → low (red)
-    """
-    def _prob(highway: str | None) -> float:
-        h = str(highway).lower() if highway else ""
-        if h in ("residential", "living_street", "unclassified", "service"):
-            return 0.75
-        if h in ("tertiary", "tertiary_link", "secondary", "secondary_link"):
-            return 0.50
-        # primary, trunk, motorway, cycleway, footway — low parking chance
-        return 0.25
-
-    gdf = gdf.copy()
-    gdf["prob"] = gdf["highway"].apply(_prob)
-    gdf["color"] = gdf["prob"].apply(
-        lambda p: "00AA00" if p >= 0.7 else ("FFAA00" if p >= 0.3 else "CC0000")
+def download_tile(z: int, x: int, y: int) -> bytes | None:
+    url = (
+        f"https://api.mapbox.com/v4/{MAPBOX_TILESET}/{z}/{x}/{y}.vector.pbf"
+        f"?access_token={MAPBOX_TOKEN}"
     )
-    return gdf
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, timeout=30)
+            if resp.status_code == 200:
+                return resp.content
+            print(f"  HTTP {resp.status_code} for {z}/{x}/{y}")
+            return None
+        except requests.RequestException as exc:
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+            else:
+                print(f"  Failed after 3 attempts: {exc}")
+    return None
 
 
 # ---------------------------------------------------------------------------
-# MVT generation
+# Process
 # ---------------------------------------------------------------------------
-def build_tile(
-    gdf: gpd.GeoDataFrame,
-    z: int, x: int, y: int,
-) -> bytes | None:
-    """Build a Mapbox Vector Tile for the given tile coords.
+def build_parking_tile(mapbox_pbf: bytes) -> bytes | None:
+    """Re-encode Mapbox road features with parking colours.
 
-    Args:
-        gdf: WGS84 GeoDataFrame with prob and color columns.
-        z, x, y: Tile coordinates.
-
-    Returns:
-        Raw .pbf bytes, or None if no features intersect the tile.
+    The road pixel coordinates come straight from the Mapbox tile — no
+    re-projection step — so they align perfectly with the base map.
     """
-    west, south, east, north = tile_bounds_wgs84(z, x, y)
-    tile_box = box(west, south, east, north)
-
-    # Filter to segments that intersect this tile
-    candidates = gdf[gdf.geometry.intersects(tile_box)]
-    if candidates.empty:
+    decoded = mapbox_vector_tile.decode(mapbox_pbf)
+    if "road" not in decoded:
         return None
 
     features = []
-    for _, row in candidates.iterrows():
-        geom = row.geometry
-        # Clip to tile bounds
-        clipped = geom.intersection(tile_box)
-        if clipped.is_empty:
+    for f in decoded["road"]["features"]:
+        cls = f["properties"].get("class", "")
+        if cls not in PARK_CLASSES:
             continue
 
-        # Handle MultiLineString after clip
-        if clipped.geom_type == "MultiLineString":
-            geoms = list(clipped.geoms)
-        elif clipped.geom_type == "LineString":
-            geoms = [clipped]
-        else:
-            continue
+        color, prob = PARK_CLASSES[cls]
+        geom = f["geometry"]
+        geom_type = geom["type"]
+        coords = geom["coordinates"]
 
-        for g in geoms:
-            if len(list(g.coords)) < 2:
-                continue
-            # Pass WGS84 coordinates — quantize_bounds handles projection
+        lines: list[list] = []
+        if geom_type == "LineString":
+            if len(coords) >= 2:
+                lines = [coords]
+        elif geom_type == "MultiLineString":
+            lines = [seg for seg in coords if len(seg) >= 2]
+
+        name = f["properties"].get("name") or f["properties"].get("name_en") or ""
+
+        for line in lines:
             features.append({
-                "geometry": mapping(g),
+                "geometry": {"type": "LineString", "coordinates": line},
                 "properties": {
-                    "color": row["color"],
-                    "prob": int(row["prob"] * 100),
-                    "street_name": row.get("street_name") or "",
+                    "color": color,
+                    "prob": prob,
+                    "street_name": str(name),
                 },
             })
 
     if not features:
         return None
 
-    # quantize_bounds projects WGS84 lon/lat → tile pixel space [0, extents]
-    tile_data = [{"name": "parking", "features": features}]
-    try:
-        pbf = mapbox_vector_tile.encode(
-            tile_data,
-            default_options={
-                "extents": 4096,
-                "quantize_bounds": (west, south, east, north),
-                "y_coord_down": True,
-            },
-        )
-        return pbf
-    except Exception as e:
-        print(f"    encode error for {z}/{x}/{y}: {e}")
-        return None
+    # Encode without quantize_bounds: coordinates are already in 0-4096 pixel
+    # space from the Mapbox tile, so no re-projection is needed.
+    return mapbox_vector_tile.encode(
+        [{"name": "parking", "features": features}],
+        default_options={"extents": 4096},
+    )
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main() -> None:
-    gdf = load_segments()
-    gdf = assign_probabilities(gdf)
+    print(f"Downloading {len(TILE_GRID)} tiles from {MAPBOX_TILESET}...")
+    written = skipped = failed = 0
 
-    counts = gdf["color"].value_counts().to_dict()
-    print(f"Segment colours: green={counts.get('00AA00',0)}, "
-          f"yellow={counts.get('FFAA00',0)}, red={counts.get('CC0000',0)}")
-
-    written = 0
-    skipped = 0
     for z, x, y in TILE_GRID:
         tile_path = TILE_DIR / str(z) / str(x) / f"{y}.pbf"
         tile_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"  {z}/{x}/{y} ... ", end="", flush=True)
 
-        pbf = build_tile(gdf, z, x, y)
+        raw = download_tile(z, x, y)
+        if raw is None:
+            print("FAILED")
+            failed += 1
+            continue
+
+        pbf = build_parking_tile(raw)
         if pbf:
             tile_path.write_bytes(pbf)
+            print(f"ok ({len(pbf)} bytes)")
             written += 1
         else:
-            # Write empty tile if one existed before (avoids 404 noise)
             if tile_path.exists():
                 tile_path.unlink()
+            print("empty (no drivable roads)")
             skipped += 1
 
-    print(f"\nDone: {written} tiles written, {skipped} empty tiles skipped")
+    print(f"\nDone: {written} tiles written, {skipped} empty, {failed} failed")
     print(f"Tile directory: {TILE_DIR.resolve()}")
     print("\nNext steps:")
     print("  1. git add public/tiles/ && git commit && git push")
