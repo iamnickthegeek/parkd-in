@@ -104,8 +104,8 @@ function setupMapLayers() {
   map.addSource("parking-segments", {
     type: "vector",
     tiles: [TILES_URL],
-    minzoom: 10,
-    maxzoom: 16,
+    minzoom: 14,
+    maxzoom: 14,
   });
 
   // Local tiles use a hex string "color" property (e.g. "00AA00").
@@ -117,9 +117,11 @@ function setupMapLayers() {
     type: "line",
     source: "parking-segments",
     "source-layer": "parking",
+    minzoom: 12,
+    maxzoom: 20,
     layout: { "line-join": "round", "line-cap": "round" },
     paint: {
-      "line-width": 8,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 12, 4, 16, 12],
       "line-blur": 4,
       "line-opacity": 0.4,
       "line-color": colorExpr,
@@ -131,9 +133,11 @@ function setupMapLayers() {
     type: "line",
     source: "parking-segments",
     "source-layer": "parking",
+    minzoom: 12,
+    maxzoom: 20,
     layout: { "line-join": "round", "line-cap": "round" },
     paint: {
-      "line-width": 4,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2, 16, 6],
       "line-color": colorExpr,
     },
   });
