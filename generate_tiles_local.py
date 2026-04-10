@@ -193,11 +193,11 @@ def build_tile(
             continue
 
         for g in geoms:
-            coords = linestring_to_tile_coords(g, west, south, east, north)
-            if len(coords) < 2:
+            if len(list(g.coords)) < 2:
                 continue
+            # Pass WGS84 coordinates — quantize_bounds handles projection
             features.append({
-                "geometry": {"type": "LineString", "coordinates": coords},
+                "geometry": mapping(g),
                 "properties": {
                     "color": row["color"],
                     "prob": int(row["prob"] * 100),
@@ -208,7 +208,7 @@ def build_tile(
     if not features:
         return None
 
-    # New mapbox-vector-tile API: layers is a list of {"name": ..., "features": [...]}
+    # quantize_bounds projects WGS84 lon/lat → tile pixel space [0, extents]
     tile_data = [{"name": "parking", "features": features}]
     try:
         pbf = mapbox_vector_tile.encode(
