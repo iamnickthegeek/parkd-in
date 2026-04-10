@@ -308,7 +308,7 @@ def main() -> None:
         f"\nDone: {written} tiles written, {skipped} empty, {failed} failed"
     )
     print(
-        f"Segments: {len(all_segments)} raw → {len(unique_segments)} after dedup"
+        f"Segments: {len(all_segments)} raw -> {len(unique_segments)} after dedup"
     )
     print(f"Tile directory:  {TILE_DIR.resolve()}")
     print(f"Segments file:   {SEGMENTS_FILE.resolve()}")
