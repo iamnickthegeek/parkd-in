@@ -87,8 +87,8 @@ function initMap() {
     style: "mapbox://styles/mapbox/dark-v11",
     center: [-0.142, 51.536],
     zoom: 14,
-    pitch: 45,
-    bearing: -17.6,
+    pitch: 0,
+    bearing: 0,
     antialias: true,
   });
 
