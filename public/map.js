@@ -226,6 +226,7 @@ function setSearchCenter(lngLat) {
   }
 
   document.getElementById("recommendations-panel").classList.add("visible");
+  document.getElementById("search-hint").classList.add("hidden");
   refreshRecommendations();
 
   clearInterval(refreshTimer);
@@ -337,7 +338,7 @@ function openSheet(rec) {
     `${walkMin(rec.walkM)} min walk · ${Math.round(rec.walkM)} m`;
 
   const hint = CLASS_HINTS[rec.roadClass] || "";
-  document.getElementById("sheet-hint").textContent = hint;
+  document.getElementById("sheet-hint-text").textContent = hint;
 
   // 5 / 10 / 15 min predictions — calculated client-side
   [5, 10, 15].forEach((w) => {

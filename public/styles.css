@@ -1,32 +1,34 @@
 /**
- * Parkd-In | Premium Map CSS
- * Purpose: Dark mode utility styles with interactive glassmorphism components.
- * Author: Antigravity AI Assistant
+ * Parkd-In | Styles
+ * Dark glassmorphism base + driver-first UX components.
  */
 
+/* =========================================================================
+   Custom properties
+   ========================================================================= */
 :root {
-  --bg-dark: #0f172a;
-  --acc-primary: #3b82f6;
-  --acc-secondary: #10b981;
-  --acc-warning: #f59e0b;
-  --acc-error: #ef4444;
-  --text-primary: #f8fafc;
-  --text-muted: #94a3b8;
-  --glass-bg: rgba(15, 23, 42, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --bg-dark:        #0f172a;
+  --acc-primary:    #3b82f6;
+  --acc-secondary:  #10b981;
+  --acc-warning:    #f59e0b;
+  --acc-error:      #ef4444;
+  --text-primary:   #f8fafc;
+  --text-muted:     #94a3b8;
+  --glass-bg:       rgba(15, 23, 42, 0.88);
+  --glass-border:   rgba(255, 255, 255, 0.12);
+  --sheet-radius:   20px;
+  --panel-shadow:   0 -4px 32px rgba(0, 0, 0, 0.5);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* =========================================================================
+   Reset
+   ========================================================================= */
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: "Inter", sans-serif;
-  background-color: var(--bg-dark);
+  background: var(--bg-dark);
   color: var(--text-primary);
-  line-height: 1.5;
   height: 100vh;
   width: 100vw;
   display: flex;
@@ -34,66 +36,57 @@ body {
   overflow: hidden;
 }
 
-h1,
-h2,
-h3,
-.logo-text {
+h1, h2, h3, .logo-text {
   font-family: "Outfit", sans-serif;
   font-weight: 700;
 }
 
-/* Header UI */
+/* =========================================================================
+   Header
+   ========================================================================= */
 .app-header {
-  height: 72px;
+  height: 56px;
   background: var(--bg-dark);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 40px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--glass-border);
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+  flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+.logo { display: flex; align-items: center; gap: 10px; }
 
-.logo-text {
-  font-size: 24px;
-  letter-spacing: -0.5px;
-  color: var(--text-primary);
-}
+.logo-text { font-size: 22px; letter-spacing: -0.5px; }
 
 .logo-accent {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 3px 7px;
   background: var(--acc-primary);
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
 
-/* Status Badge */
 .status-badge {
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.2);
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 20px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--acc-secondary);
-  box-shadow: 0 0 10px var(--acc-secondary);
+  box-shadow: 0 0 8px var(--acc-secondary);
   animation: pulse 2s infinite ease-in-out;
 }
 
@@ -103,147 +96,417 @@ h3,
   color: var(--acc-secondary);
 }
 
-/* Map UI */
+/* =========================================================================
+   Map container
+   ========================================================================= */
 #map-container {
   flex-grow: 1;
   position: relative;
   width: 100%;
+  overflow: hidden;
 }
 
-#map {
-  width: 100%;
-  height: 100%;
-}
+#map { width: 100%; height: 100%; }
 
-.map-overlay {
+/* =========================================================================
+   Window panel (top-left)
+   ========================================================================= */
+#window-panel {
   position: absolute;
-  z-index: 1;
-  left: 24px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass {
+  top: 12px;
+  left: 12px;
+  z-index: 10;
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  padding: 24px;
-}
-
-.legend {
-  bottom: 24px;
-  width: 280px;
-}
-
-.legend h3 {
-  margin-bottom: 16px;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-
-.legend-scale {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.scale-row {
+  border-radius: 10px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.dot.red {
-  background: var(--acc-error);
-  box-shadow: 0 0 8px var(--acc-error);
-}
-.dot.yellow {
-  background: var(--acc-warning);
-  box-shadow: 0 0 8px var(--acc-warning);
-}
-.dot.green {
-  background: var(--acc-secondary);
-  box-shadow: 0 0 8px var(--acc-secondary);
-}
-
-.label {
+  gap: 8px;
   font-size: 13px;
   color: var(--text-primary);
 }
 
-.info-card {
-  top: 24px;
-  width: 320px;
+#window-panel label { color: var(--text-muted); white-space: nowrap; }
+
+#window-select {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  cursor: pointer;
 }
 
-.info-card h2 {
-  font-size: 20px;
-  margin-bottom: 12px;
+.overlay-toggle {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: "Inter", sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
 }
+.overlay-toggle:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.3); }
 
-.info-card p {
+/* =========================================================================
+   Search hint (visible until first search centre)
+   ========================================================================= */
+#search-hint {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 10px 20px;
   font-size: 14px;
   color: var(--text-muted);
-  margin-bottom: 24px;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 0.3s;
 }
+#search-hint.hidden { opacity: 0; }
 
-.stats-row {
+/* =========================================================================
+   Recommendations panel (slides up from bottom)
+   ========================================================================= */
+#recommendations-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 11;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--glass-border);
+  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+  box-shadow: var(--panel-shadow);
+  padding: 16px 16px 20px;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 45vh;
+  overflow-y: auto;
+}
+#recommendations-panel.visible { transform: translateY(0); }
+
+#rec-header {
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid var(--glass-border);
-  padding-top: 16px;
+  align-items: baseline;
+  margin-bottom: 12px;
 }
+#rec-title   { font-size: 15px; font-weight: 600; }
+#rec-subtitle { font-size: 12px; color: var(--text-muted); }
 
-.stat {
+#rec-list {
+  list-style: none;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
-.stat-value {
-  font-size: 20px;
+.rec-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rec-item:hover { background: rgba(255, 255, 255, 0.09); }
+
+.rec-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--acc-primary);
+  color: #fff;
+  flex-shrink: 0;
 }
 
-.stat-label {
+.rec-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-prob {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rec-walk {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.rec-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 0;
+  list-style: none;
+}
+
+/* =========================================================================
+   Detail bottom sheet
+   ========================================================================= */
+#detail-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  background: #131e32;
+  border-top: 1px solid var(--glass-border);
+  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+  box-shadow: var(--panel-shadow);
+  padding: 20px 20px 32px;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#detail-sheet.visible { transform: translateY(0); }
+
+#sheet-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+#sheet-close:hover { color: var(--text-primary); }
+
+#sheet-header { margin-bottom: 16px; padding-right: 32px; }
+
+#sheet-street {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "Outfit", sans-serif;
+  margin-bottom: 4px;
+}
+
+#sheet-walk { font-size: 13px; color: var(--text-muted); }
+
+/* 3-column prediction grid */
+#sheet-predictions {
+  display: flex;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.pred-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+}
+
+.pred-col--mid {
+  border-left: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
+}
+
+.pred-label {
   font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.8px;
   color: var(--text-muted);
 }
 
-/* Animations */
-@keyframes pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+.pred-val {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: "Outfit", sans-serif;
 }
 
-/* Mapbox UI Tweaks */
+#sheet-hint-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+  min-height: 18px;
+}
+
+/* Actions row */
+#sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-nav {
+  display: block;
+  text-align: center;
+  background: var(--acc-primary);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btn-nav:hover { opacity: 0.9; }
+
+#sheet-report-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-report {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: "Inter", sans-serif;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-report:hover { opacity: 0.85; }
+
+.btn-parked    { background: #166534; color: #86efac; }
+.btn-left      { background: #1e3a5f; color: #93c5fd; }
+.btn-searching { background: #7f1d1d; color: #fca5a5; }
+
+/* =========================================================================
+   Report status toast
+   ========================================================================= */
+#report-status {
+  display: none;
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 10px 20px;
+  color: var(--text-primary);
+  font-size: 14px;
+  white-space: nowrap;
+  z-index: 15;
+}
+
+/* =========================================================================
+   P-markers (injected by map.js)
+   ========================================================================= */
+.parking-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.marker-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.25);
+}
+
+.marker-rank {
+  transform: rotate(45deg);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  font-family: "Outfit", sans-serif;
+}
+
+.marker-walk {
+  margin-top: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  border: 1px solid var(--glass-border);
+}
+
+/* =========================================================================
+   Destination pin (injected by map.js)
+   ========================================================================= */
+.destination-pin {
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border: 3px solid var(--acc-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+/* =========================================================================
+   Mapbox control overrides
+   ========================================================================= */
 .mapboxgl-ctrl-group {
   background: var(--glass-bg) !important;
   border: 1px solid var(--glass-border) !important;
   backdrop-filter: blur(12px) !important;
 }
 
-.mapboxgl-ctrl-icon {
-  filter: invert(1);
+.mapboxgl-ctrl-icon { filter: invert(1); }
+
+/* =========================================================================
+   Animations
+   ========================================================================= */
+@keyframes pulse {
+  0%   { opacity: 1; transform: scale(1);   }
+  50%  { opacity: 0.5; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1);   }
+}
+
+/* =========================================================================
+   Mobile adjustments
+   ========================================================================= */
+@media (max-width: 480px) {
+  .app-header { padding: 0 14px; height: 52px; }
+  .logo-text  { font-size: 19px; }
+  #window-panel { flex-wrap: wrap; max-width: calc(100vw - 120px); }
+  #rec-list   { gap: 6px; }
+  #detail-sheet { padding: 16px 16px 28px; }
+  .pred-val   { font-size: 20px; }
 }
