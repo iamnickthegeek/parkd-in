@@ -7,7 +7,7 @@ prefix /api/v1 for clean versioning and modularity.
 
 from fastapi import APIRouter
 
-from app.api.endpoints import auth, parking, health
+from app.api.endpoints import auth, parking, health, tiles
 
 api_router = APIRouter()
 
@@ -19,6 +19,9 @@ api_router.include_router(parking.router, prefix="/parking", tags=["parking"])
 
 # Register the health endpoint at the /api/v1 root (no sub-prefix).
 api_router.include_router(health.router, tags=["health"])
+
+# Register the tiles proxy endpoint under /api/v1.
+api_router.include_router(tiles.router, tags=["tiles"])
 
 # PKG-010 — Main Application: Centralize API routing.
 # This code satisfies PKG-010. No additional functionality added.

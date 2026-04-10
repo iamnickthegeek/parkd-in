@@ -75,8 +75,10 @@ class BestNearbyRecommendation(BaseModel):
         rank: Ranking position (1-based).
         segment_id: UUID of the street segment.
         street_name: Name of the street.
-        probability: Pre-computed probability [0.0, 1.0].
+        probability: Adjusted probability for the requested time window [0.0, 1.0].
         walk_metres: Walking distance from query point in metres.
+        lat: Segment centroid latitude (WGS84) — used to place map marker.
+        lon: Segment centroid longitude (WGS84) — used to place map marker.
         restriction_active: Always False (restrictions baked into probability).
     """
 
@@ -84,9 +86,11 @@ class BestNearbyRecommendation(BaseModel):
     segment_id: str = Field(..., description="UUID of the street segment.")
     street_name: str = Field(..., description="Name of the street.")
     probability: float = Field(
-        ..., ge=0.0, le=1.0, description="Pre-computed probability."
+        ..., ge=0.0, le=1.0, description="Adjusted probability for the time window."
     )
     walk_metres: float = Field(..., ge=0.0, description="Walking distance in metres.")
+    lat: float = Field(..., description="Segment centroid latitude (WGS84).")
+    lon: float = Field(..., description="Segment centroid longitude (WGS84).")
     restriction_active: bool = Field(
         False,
         description="Always False — restrictions already factored into probability.",

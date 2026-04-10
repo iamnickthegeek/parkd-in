@@ -167,8 +167,10 @@ TILE_GRID: list[tuple[int, int, int]] = [
     (14, x, y) for x in range(8183, 8189) for y in range(5443, 5448)
 ]
 
-# Two separate queries to avoid expensive JOIN on 23K segments.
-# Query 1: Get all segments with their centroid coordinates.
+# Batch SQL queries for tile generation.
+# Kept separate to avoid expensive multi-table JOINs on 23K segments.
+
+# Query 1: segment centroids.
 _SEGMENT_SQL = text("""
     SELECT
         s.id::text AS segment_id,
@@ -177,7 +179,8 @@ _SEGMENT_SQL = text("""
         ST_X(ST_Centroid(s.geom)) AS lon
     FROM streetsegment s
 """)
-# Query 2: Aggregate bay counts per segment (much smaller result set).
+
+# Query 2: bay counts per segment.
 _BAY_SQL = text("""
     SELECT
         b.segment_id::text AS segment_id,
@@ -187,12 +190,45 @@ _BAY_SQL = text("""
     GROUP BY b.segment_id
 """)
 
+# Query 3: enforcement density for the current hour + day-of-week.
+# Parameterised — pass {"h": hour, "d": dow}.
+_PCN_SQL = text("""
+    SELECT segment_id::text AS segment_id, pcn_count
+    FROM enforcement_density_mv
+    WHERE hour_of_day = :h AND day_of_week = :d
+""")
+
+# Query 4: latest traffic speed per segment in the last 30 minutes.
+_TRAFFIC_SQL = text("""
+    SELECT DISTINCT ON (segment_id)
+        segment_id::text AS segment_id,
+        speed
+    FROM traffichistory
+    WHERE timestamp > NOW() - INTERVAL '30 minutes'
+    ORDER BY segment_id, timestamp DESC
+""")
+
+# Query 5: crowd events in the last 30 minutes, most recent per segment.
+_CROWD_SQL = text("""
+    SELECT DISTINCT ON (segment_id)
+        segment_id::text AS segment_id,
+        event_type
+    FROM parkingevent
+    WHERE timestamp > NOW() - INTERVAL '30 minutes'
+    ORDER BY segment_id, timestamp DESC
+""")
+
 
 def load_segment_batch_data(db: Session, hour: int, dow: int) -> list[dict[str, Any]]:
-    """Load all segment data in two separate queries for batch tile generation.
+    """Load all segment data in five separate queries for batch tile generation.
 
-    Split into segment query + bay aggregation to avoid expensive JOIN
-    on 23K segments with 8K bays. Results are merged in Python.
+    Runs five cheap queries and merges results in Python to avoid expensive
+    multi-table JOINs on 23K segments:
+      1. Segment centroids
+      2. Bay counts per segment
+      3. Enforcement PCN counts for current hour + day-of-week
+      4. Latest traffic speed per segment (last 30 min)
+      5. Most recent crowd event per segment (last 30 min)
 
     Args:
         db: SQLAlchemy Session from caller.
@@ -201,26 +237,33 @@ def load_segment_batch_data(db: Session, hour: int, dow: int) -> list[dict[str, 
 
     Returns:
         List of dicts with segment data (segment_id, street_name, lat, lon,
-        bay_count, total_spaces).
+        bay_count, total_spaces, pcn_count, traffic_speed, crowd_event).
     """
-    # Override Supabase's default statement timeout for this session (5 minutes).
     db.execute(text("SET statement_timeout = '300000'"))
-    # Get all segments
+
     seg_result = db.execute(_SEGMENT_SQL).mappings().all()
     rows = [dict(row) for row in seg_result]
 
-    # Get bay aggregations and merge into segment rows
     bay_result = db.execute(_BAY_SQL).mappings().all()
-    bay_map = {row["segment_id"]: dict(row) for row in bay_result}
+    bay_map = {r["segment_id"]: dict(r) for r in bay_result}
+
+    pcn_result = db.execute(_PCN_SQL, {"h": hour, "d": dow}).mappings().all()
+    pcn_map = {r["segment_id"]: int(r["pcn_count"]) for r in pcn_result}
+
+    traffic_result = db.execute(_TRAFFIC_SQL).mappings().all()
+    traffic_map = {r["segment_id"]: float(r["speed"]) for r in traffic_result}
+
+    crowd_result = db.execute(_CROWD_SQL).mappings().all()
+    crowd_map = {r["segment_id"]: str(r["event_type"]) for r in crowd_result}
 
     for row in rows:
         sid = row["segment_id"]
-        if sid in bay_map:
-            row["bay_count"] = bay_map[sid]["bay_count"]
-            row["total_spaces"] = bay_map[sid]["total_spaces"]
-        else:
-            row["bay_count"] = 0
-            row["total_spaces"] = 1
+        bay = bay_map.get(sid, {})
+        row["bay_count"] = bay.get("bay_count", 0)
+        row["total_spaces"] = bay.get("total_spaces", 1)
+        row["pcn_count"] = pcn_map.get(sid)           # None → use default in calc
+        row["traffic_speed"] = traffic_map.get(sid)   # None → use default in calc
+        row["crowd_event"] = crowd_map.get(sid)        # None → no crowd signal
 
     return rows
 
@@ -242,29 +285,53 @@ def _prob_to_color(prob: float) -> int:
 
 
 def _calc_prob_from_dict(row: dict[str, Any], dt: datetime, events: list[Any]) -> float:
-    """Calculate probability from pre-loaded batch data (no DB queries).
+    """Calculate probability from pre-loaded batch data (no per-row DB queries).
 
-    Simplified version — no traffic or enforcement lookups.
+    Uses real enforcement, traffic, and crowd data loaded by
+    load_segment_batch_data. Falls back to neutral values (0.7) for any
+    data source that has no coverage for this segment.
+
+    Factor weights match calculate_probability() for consistency:
+      capacity    20% — how many bays does this street have?
+      time        25% — is this a high-enforcement hour/day?
+      traffic     20% — is traffic flowing freely (proxy for open spaces)?
+      crowd       15% — what are nearby drivers reporting?
+      restriction 20% — treated as 1.0 (no CPZ query in batch path; CPZ
+                         data is visible via segment detail endpoint)
 
     Args:
-        row: Dict from load_segment_batch_data with pre-joined data.
-        dt: Datetime for restriction/time-of-day evaluation.
-        events: List of recent ParkingEvent objects for crowd signals.
+        row: Dict from load_segment_batch_data.
+        dt: Datetime (unused in batch path — hour/dow loaded at batch start).
+        events: Legacy parameter (ignored; crowd signal comes from row data).
 
     Returns:
         float: Probability clamped to [0.0, 1.0].
     """
     f_capacity = min(1.0, row["total_spaces"] / 10.0)
-    # Skip restriction check for MVP (no DB queries)
-    f_time = 0.7  # Neutral time factor
-    f_traffic = 0.7  # Neutral traffic factor
-    f_crowd = crowd_factor(events)
+
+    # Enforcement: more PCNs at this hour → lower probability.
+    pcn = row.get("pcn_count")
+    f_time = 0.7 if pcn is None else max(0.0, 1.0 - pcn / 10.0)
+
+    # Traffic: higher speed → more flow → easier to park.
+    speed = row.get("traffic_speed")
+    f_traffic = 0.7 if speed is None else max(0.5, min(1.0, speed / 50.0))
+
+    # Crowd: synthetic single-event object so crowd_factor() works.
+    crowd_event = row.get("crowd_event")
+    if crowd_event:
+        class _E:
+            event_type = crowd_event
+        f_crowd = crowd_factor([_E()])
+    else:
+        f_crowd = 0.0
+
     raw = (
         f_capacity * 0.20
-        + f_time * 0.25
+        + f_time   * 0.25
         + f_traffic * 0.20
-        + f_crowd * 0.15
-        + 1.0 * 0.20
+        + f_crowd  * 0.15
+        + 1.0      * 0.20   # restriction factor (1.0 = no restriction assumed)
     )
     return float(max(0.0, min(1.0, raw)))
 
@@ -427,7 +494,7 @@ def update_prediction_tiles_r2(db: Session, redis_client: Any) -> None:
     probs: dict[str, float] = {}
     for r in rows:
         sid = r["segment_id"]
-        probs[sid] = _calc_prob_from_dict(r, now, [])
+        probs[sid] = _calc_prob_from_dict(r, now, [])  # crowd signal read from row["crowd_event"]
 
     write_segment_probs_cache(rows, probs, redis_client)
 

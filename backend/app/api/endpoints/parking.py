@@ -181,29 +181,55 @@ async def get_parking_probability(
 async def get_best_nearby(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
-    limit: int = Query(default=5, ge=1, le=20),
+    radius: int = Query(default=500, ge=50, le=2000, description="Search radius in metres"),
+    limit: int = Query(default=5, ge=1, le=10),
+    window_min: int = Query(default=10, description="Time window: 5, 10, or 15 minutes"),
     _rate_limit: Annotated[None, Depends(check_spatial_rate_limit)] = None,
 ) -> BestNearbyResponse:
-    """Return top-ranked nearby segments by probability.
+    """Return top-ranked parking recommendations near a location.
+
+    Filters segments to those within `radius` metres, applies the
+    `window_min` probability multiplier, then scores each candidate as
+    a weighted combination of probability (70%) and proximity (30%).
+    Returns the top `limit` results, ranked by score descending.
 
     Reads from the segment_probs Redis cache — zero PostGIS queries.
 
     Args:
-        lat: Query latitude.
+        lat: Query latitude (destination or current GPS position).
         lon: Query longitude.
-        limit: Maximum number of recommendations (max 20).
+        radius: Search radius in metres (default 500, max 2000).
+        limit: Maximum recommendations to return (default 5, max 10).
+        window_min: Prediction horizon — must be 5, 10, or 15.
         _rate_limit: Rate limit dependency (injected).
 
     Returns:
-        BestNearbyResponse with ranked recommendations.
+        BestNearbyResponse with proximity-scored recommendations.
+
+    Raises:
+        HTTPException: 400 if window_min is not 5, 10, or 15.
     """
+    if window_min not in WINDOW_MULTIPLIERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="window_min must be 5, 10, or 15",
+        )
+
     upstash = _get_upstash_client()
     segments = _get_cached_segments(upstash)
+    multiplier = WINDOW_MULTIPLIERS[window_min]
 
-    scored: list[tuple[float, str, dict[str, Any]]] = []
+    # Score = 70% adjusted probability + 30% proximity weight.
+    # Proximity weight = 1.0 at the query point, 0.0 at the radius edge.
+    scored: list[tuple[float, float, float, str, dict[str, Any]]] = []
     for sid, seg in segments.items():
         dist = _haversine_m(lat, lon, seg["lat"], seg["lon"])
-        scored.append((seg["prob"], sid, seg | {"walk_metres": round(dist, 1)}))
+        if dist > radius:
+            continue
+        adj_prob = min(1.0, seg["prob"] * multiplier)
+        proximity = 1.0 - (dist / radius)
+        score = adj_prob * 0.70 + proximity * 0.30
+        scored.append((score, adj_prob, dist, sid, seg))
 
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[:limit]
@@ -213,11 +239,13 @@ async def get_best_nearby(
             rank=i + 1,
             segment_id=sid,
             street_name=seg.get("street_name", ""),
-            probability=seg["prob"],
-            walk_metres=seg["walk_metres"],
+            probability=adj_prob,
+            walk_metres=round(dist, 1),
+            lat=seg["lat"],
+            lon=seg["lon"],
             restriction_active=False,
         )
-        for i, (_, sid, seg) in enumerate(top)
+        for i, (_, adj_prob, dist, sid, seg) in enumerate(top)
     ]
 
     return BestNearbyResponse(
