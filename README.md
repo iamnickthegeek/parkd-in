@@ -205,7 +205,7 @@ Bay upsert complete: 8205 inserted, 0 updated, ...
 set PYTHONPATH=backend
 python generate_tiles_local.py
 ```
-Output: `Done: 19 tiles written` and files created in `frontend/tiles/` and `public/tiles/`.
+Output: `Done: 19 tiles written` and files created in `public/tiles/`.
 
 **Step 2 — Start the backend:**
 ```
@@ -238,7 +238,7 @@ python generate_tiles.py
 
 | Command | What it does |
 |---|---|
-| `python generate_tiles_local.py` | Generate map tiles from the local OSM cache, write to `public/tiles/` and `frontend/tiles/`. No database needed. |
+| `python generate_tiles_local.py` | Generate map tiles from the local OSM cache, write to `public/tiles/`. No database needed. |
 | `python generate_tiles.py` | Generate tiles using Supabase data, upload to Cloudflare R2. Requires `LOCAL_MODE=false` and a working database. |
 | `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload` | Start the API server. Must set `PYTHONPATH=backend` first. |
 | `python -m http.server 3000` | Serve the frontend at http://localhost:3000. Run from `frontend/`. |
