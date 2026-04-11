@@ -24,12 +24,12 @@ jobs:
       - name: Generate tiles and segments.json
         env:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
-        run: python predictive_parking/generate_tiles_local.py
+        run: python generate_tiles_local.py
 
       - name: Commit and push updated tiles + segments
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add predictive_parking/public/tiles/ predictive_parking/public/segments.json
+          git add public/tiles/ public/segments.json
           git diff --cached --quiet || git commit -m "chore: refresh parking tiles [skip ci]"
           git push
