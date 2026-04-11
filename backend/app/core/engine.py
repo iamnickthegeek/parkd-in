@@ -261,9 +261,9 @@ def load_segment_batch_data(db: Session, hour: int, dow: int) -> list[dict[str, 
         bay = bay_map.get(sid, {})
         row["bay_count"] = bay.get("bay_count", 0)
         row["total_spaces"] = bay.get("total_spaces", 1)
-        row["pcn_count"] = pcn_map.get(sid)           # None → use default in calc
-        row["traffic_speed"] = traffic_map.get(sid)   # None → use default in calc
-        row["crowd_event"] = crowd_map.get(sid)        # None → no crowd signal
+        row["pcn_count"] = pcn_map.get(sid)  # None → use default in calc
+        row["traffic_speed"] = traffic_map.get(sid)  # None → use default in calc
+        row["crowd_event"] = crowd_map.get(sid)  # None → no crowd signal
 
     return rows
 
@@ -320,18 +320,20 @@ def _calc_prob_from_dict(row: dict[str, Any], dt: datetime, events: list[Any]) -
     # Crowd: synthetic single-event object so crowd_factor() works.
     crowd_event = row.get("crowd_event")
     if crowd_event:
+
         class _E:
             event_type = crowd_event
+
         f_crowd = crowd_factor([_E()])
     else:
         f_crowd = 0.0
 
     raw = (
         f_capacity * 0.20
-        + f_time   * 0.25
+        + f_time * 0.25
         + f_traffic * 0.20
-        + f_crowd  * 0.15
-        + 1.0      * 0.20   # restriction factor (1.0 = no restriction assumed)
+        + f_crowd * 0.15
+        + 1.0 * 0.20  # restriction factor (1.0 = no restriction assumed)
     )
     return float(max(0.0, min(1.0, raw)))
 
@@ -494,7 +496,9 @@ def update_prediction_tiles_r2(db: Session, redis_client: Any) -> None:
     probs: dict[str, float] = {}
     for r in rows:
         sid = r["segment_id"]
-        probs[sid] = _calc_prob_from_dict(r, now, [])  # crowd signal read from row["crowd_event"]
+        probs[sid] = _calc_prob_from_dict(
+            r, now, []
+        )  # crowd signal read from row["crowd_event"]
 
     write_segment_probs_cache(rows, probs, redis_client)
 
@@ -506,12 +510,7 @@ def update_prediction_tiles_r2(db: Session, redis_client: Any) -> None:
     # Build temp table once — inserting 23K rows per tile (inside the loop) was
     # both slow (1.3 MB SQL per tile) and buggy with ON COMMIT DROP semantics.
     db.execute(text("DROP TABLE IF EXISTS tmp_probs"))
-    db.execute(
-        text(
-            "CREATE TEMP TABLE tmp_probs "
-            "(segment_id UUID, color_int INT)"
-        )
-    )
+    db.execute(text("CREATE TEMP TABLE tmp_probs " "(segment_id UUID, color_int INT)"))
     # Batch-insert in chunks to avoid a single 1.3 MB SQL statement.
     chunk_size = 1000
     for i in range(0, len(color_rows), chunk_size):

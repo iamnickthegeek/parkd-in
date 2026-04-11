@@ -181,9 +181,13 @@ async def get_parking_probability(
 async def get_best_nearby(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
-    radius: int = Query(default=500, ge=50, le=2000, description="Search radius in metres"),
+    radius: int = Query(
+        default=500, ge=50, le=2000, description="Search radius in metres"
+    ),
     limit: int = Query(default=5, ge=1, le=10),
-    window_min: int = Query(default=10, description="Time window: 5, 10, or 15 minutes"),
+    window_min: int = Query(
+        default=10, description="Time window: 5, 10, or 15 minutes"
+    ),
     _rate_limit: Annotated[None, Depends(check_spatial_rate_limit)] = None,
 ) -> BestNearbyResponse:
     """Return top-ranked parking recommendations near a location.

@@ -10,7 +10,7 @@ State: reads from disk (local) or R2 bucket (production).
 
 import logging
 import pathlib
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import Response
@@ -27,7 +27,7 @@ router = APIRouter()
 _LOCAL_TILE_DIR = pathlib.Path(__file__).resolve().parents[4] / "frontend" / "tiles"
 
 
-def _get_r2_client():  # type: ignore[return]
+def _get_r2_client() -> Any:
     """Return a boto3 S3 client configured for Cloudflare R2."""
     import boto3  # type: ignore[import-untyped]
 

@@ -7,18 +7,15 @@ Relies on: sqlalchemy, psycopg2-binary.
 # CRITICAL: Patch psycopg2 hstore BEFORE any SQLAlchemy imports.
 # SQLAlchemy's psycopg2 dialect calls HstoreAdapter.get_oids() on every new
 # connection, which queries pg_type and causes connection drops over PgBouncer.
-import psycopg2.extras
-
-_original_get_oids = psycopg2.extras.HstoreAdapter.get_oids
+import psycopg2.extras  # type: ignore[import-untyped]
 
 
-@staticmethod
-def _patched_get_oids(conn):
+def _patched_get_oids(conn: object) -> None:
     """Return empty OIDs — we don't use hstore and this avoids the pg_type query."""
     return None
 
 
-psycopg2.extras.HstoreAdapter.get_oids = _patched_get_oids
+psycopg2.extras.HstoreAdapter.get_oids = staticmethod(_patched_get_oids)
 
 # Now safe to import SQLAlchemy
 from typing import Generator  # noqa: E402

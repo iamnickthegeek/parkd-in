@@ -54,6 +54,7 @@ async def startup_event() -> None:
         start_scheduler()
     else:
         import logging
+
         logging.getLogger(__name__).info(
             "LOCAL_MODE=true — background scheduler disabled."
         )

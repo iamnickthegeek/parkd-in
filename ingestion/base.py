@@ -9,9 +9,9 @@ State: None — all functions are stateless.
 
 import logging
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry  # type: ignore[import-untyped]
+import requests  # type: ignore[import-untyped]
+from requests.adapters import HTTPAdapter  # type: ignore[import-untyped]
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
