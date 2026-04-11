@@ -21,12 +21,12 @@ def _patched_get_oids(conn):
 psycopg2.extras.HstoreAdapter.get_oids = _patched_get_oids
 
 # Now safe to import SQLAlchemy
-from typing import Generator
+from typing import Generator  # noqa: E402
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
-from app.core.config import settings
+from app.core.config import settings  # noqa: E402
 
 # Strip ?pgbouncer=true if present — PgBouncer transaction pooling incompatible with some features.
 db_url = settings.SUPABASE_DATABASE_URL.split("?")[0]
