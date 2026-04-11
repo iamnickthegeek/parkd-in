@@ -12,6 +12,7 @@ State: Each test writes a canary value and cleans it up within the test.
 import uuid
 
 import boto3  # type: ignore
+import pytest
 import requests
 from upstash_redis import Redis as UpstashRedis
 
@@ -57,6 +58,10 @@ def test_r2_upload_and_public_get() -> None:
     Verifies that R2 credentials are valid, the bucket is writable, and
     the public CDN URL returns the uploaded content correctly.
     """
+    if settings.R2_ACCOUNT_ID == "placeholder_account_id":
+        pytest.skip(
+            "R2 credentials not configured — set R2_ACCOUNT_ID secret to enable"
+        )
     endpoint = settings.R2_ENDPOINT_URL or (
         f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
     )
