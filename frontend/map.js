@@ -10,7 +10,7 @@
  * In a production setup, this would be injected via a build step or proxy.
  * @constant {string}
  */
-mapboxgl.accessToken = "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21uOWd3dmx2MDd2MDJzcXl0Nno5czdzbSJ9.736RofO3J5RUSzyLXT69PQ";
+mapboxgl.accessToken = "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21udTZ5YTVkMDhuejJxc2N6MjZzb2dwNSJ9.GNQEyAD5HwhNb42cznksOQ";
 
 /** @type {mapboxgl.Map} */
 let map;

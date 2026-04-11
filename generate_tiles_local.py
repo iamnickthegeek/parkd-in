@@ -44,8 +44,8 @@ ZOOM = 14
 TILE_GRID = [(ZOOM, x, y) for x in range(8183, 8189) for y in range(5443, 5448)]
 
 MAPBOX_TOKEN = (
-    "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21uOWd3dmx2MDd2MDJzcXl0Nno5czdzbSJ9"
-    ".736RofO3J5RUSzyLXT69PQ"
+    "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21udTZ5YTVkMDhuejJxc2N6MjZzb2dwNSJ9"
+    ".GNQEyAD5HwhNb42cznksOQ"
 )
 MAPBOX_TILESET = "mapbox.mapbox-streets-v8"
 

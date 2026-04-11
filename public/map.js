@@ -20,7 +20,7 @@
  */
 
 mapboxgl.accessToken =
-  "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21uOWd3dmx2MDd2MDJzcXl0Nno5czdzbSJ9.736RofO3J5RUSzyLXT69PQ";
+  "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21udTZ5YTVkMDhuejJxc2N6MjZzb2dwNSJ9.GNQEyAD5HwhNb42cznksOQ";
 
 // ---------------------------------------------------------------------------
 // Constants
