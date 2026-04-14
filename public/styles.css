@@ -191,9 +191,9 @@ h1, h2, h3, .logo-text {
 
 /* Level transitions — GPU-composited, no height animation */
 #bottom-sheet.sheet-hidden { transform: translateY(100%); }
-#bottom-sheet.level0       { transform: translateY(calc(100% - 96px)); }
-#bottom-sheet.level1       { transform: translateY(calc(100% - 55dvh)); }
-#bottom-sheet.level2       { transform: translateY(calc(100% - 88dvh)); }
+#bottom-sheet.level0       { transform: translateY(calc(100% - 96px  - env(safe-area-inset-bottom, 0px))); }
+#bottom-sheet.level1       { transform: translateY(calc(100% - 55dvh - env(safe-area-inset-bottom, 0px))); }
+#bottom-sheet.level2       { transform: translateY(calc(100% - 88dvh - env(safe-area-inset-bottom, 0px))); }
 
 /* Level content — only the active level is shown */
 .sheet-l0,
