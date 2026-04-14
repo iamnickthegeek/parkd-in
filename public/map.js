@@ -68,6 +68,18 @@ function setSheet(level) {
   const el = document.getElementById("bottom-sheet");
   if (!el) return;
   el.className = level < 0 ? "sheet-hidden" : `level${level}`;
+
+  // Belt-and-braces: explicitly control visibility so CSS cascade can't bleed
+  // level content between states during the translateY transition.
+  const levels = [
+    document.querySelector(".sheet-l0"),
+    document.querySelector(".sheet-l1"),
+    document.querySelector(".sheet-l2"),
+  ];
+  levels.forEach((node, i) => {
+    if (!node) return;
+    node.style.display = i === level ? "flex" : "none";
+  });
 }
 
 /** Update the Level-0 glance card with the top result. */
@@ -782,8 +794,10 @@ document.addEventListener("DOMContentLoaded", () => {
     setSheet(searchCenter ? 1 : 0);
   });
 
-  // Close from Level 2 — reset everything
-  document.getElementById("sheet-close")?.addEventListener("click", resetSearch);
+  // Close from Level 2 — go back to Level 1 (keeps results, matches user expectation)
+  document.getElementById("sheet-close")?.addEventListener("click", () => {
+    setSheet(searchCenter ? 1 : 0);
+  });
 
   // Close from Level 1 — reset everything
   document.getElementById("rec-close")?.addEventListener("click", resetSearch);
