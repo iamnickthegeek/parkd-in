@@ -60,6 +60,9 @@ let destinationMarker = null;
 /** @type {number | null} setInterval handle */
 let refreshTimer = null;
 
+/** Promise for the in-flight loadSegments call (avoids double-fetch in demoMode) */
+let segmentsPromise = null;
+
 /** Currently open bottom-sheet segment */
 let activeRec = null;
 
@@ -150,16 +153,23 @@ function haversineM(lat1, lon1, lat2, lon2) {
 // Load segments
 // ---------------------------------------------------------------------------
 
-async function loadSegments() {
-  try {
-    const res = await fetch(SEGMENTS_URL);
-    if (!res.ok) return;
-    const data = await res.json();
-    allSegments = data.segments || [];
-    console.log(`[Parkd-In] Loaded ${allSegments.length} segments`);
-  } catch (e) {
-    console.warn("[Parkd-In] Could not load segments.json:", e);
-  }
+function loadSegments() {
+  if (segmentsPromise) return segmentsPromise;
+  segmentsPromise = (async () => {
+    try {
+      const res = await fetch(SEGMENTS_URL);
+      if (!res.ok) {
+        console.warn(`[Parkd-In] segments.json fetch failed: HTTP ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      allSegments = data.segments || [];
+      console.log(`[Parkd-In] Loaded ${allSegments.length} segments`);
+    } catch (e) {
+      console.warn("[Parkd-In] Could not load segments.json:", e);
+    }
+  })();
+  return segmentsPromise;
 }
 
 // ---------------------------------------------------------------------------
@@ -544,16 +554,22 @@ function demoMode(lat, lng, label) {
   map.flyTo({ center: [lng, lat], zoom: 15, speed: 1.2 });
 
   function activate() {
+    console.log(`[Parkd-In] demoMode: allSegments.length = ${allSegments.length}`);
     setSearchCenter({ lat, lng });
+
+    const windowMin = parseInt(
+      document.getElementById("window-select")?.value || "10", 10
+    );
+    const recs = bestNearby(windowMin);
+    console.log(`[Parkd-In] demoMode: bestNearby found ${recs.length} results`);
+
     const toast = document.getElementById("report-status");
-    toast.textContent = label;
+    toast.textContent = recs.length > 0
+      ? `${label} — ${recs.length} spaces found`
+      : `${label} — no segments loaded (check console)`;
     toast.style.display = "block";
-    setTimeout(() => { toast.style.display = "none"; }, 3000);
+    setTimeout(() => { toast.style.display = "none"; }, 4000);
   }
 
-  if (allSegments.length > 0) {
-    activate();
-  } else {
-    loadSegments().then(activate);
-  }
+  loadSegments().then(activate);
 }
