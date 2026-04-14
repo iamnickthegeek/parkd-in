@@ -63,6 +63,12 @@ let refreshTimer = null;
 /** Promise for the in-flight loadSegments call (avoids double-fetch in demoMode) */
 let segmentsPromise = null;
 
+/** watchPosition ID — non-null while continuous GPS tracking is active */
+let watchId = null;
+
+/** Last GPS position used as search centre (for movement threshold) */
+let lastWatchPos = null;
+
 /** Currently open bottom-sheet segment */
 let activeRec = null;
 
@@ -241,6 +247,37 @@ function setSearchCenter(lngLat) {
 
   clearInterval(refreshTimer);
   refreshTimer = setInterval(refreshRecommendations, REFRESH_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Continuous GPS tracking — hands-free driver mode
+// ---------------------------------------------------------------------------
+
+const GPS_MIN_MOVE_M = 30; // ignore updates smaller than this
+
+function startGpsTracking() {
+  if (!navigator.geolocation || watchId !== null) return;
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const isFirst = lastWatchPos === null;
+      if (!isFirst && haversineM(lastWatchPos.lat, lastWatchPos.lng, lat, lng) < GPS_MIN_MOVE_M) return;
+      lastWatchPos = { lat, lng };
+      if (isFirst) map.flyTo({ center: [lng, lat], zoom: 15, speed: 1.2 });
+      setSearchCenter({ lat, lng });
+    },
+    (err) => console.warn("[Parkd-In] GPS:", err.message),
+    { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 }
+  );
+}
+
+function stopGpsTracking() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  lastWatchPos = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -499,19 +536,24 @@ function initMap() {
   map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
   geolocate.on("geolocate", (e) => {
+    // Manual GPS button press: restart continuous tracking from this fix
+    stopGpsTracking();
     setSearchCenter({ lat: e.coords.latitude, lng: e.coords.longitude });
+    startGpsTracking();
   });
 
-  // Tap map to set search centre (ignore taps on markers / sheet)
+  // Tap map to set a fixed destination — stops GPS tracking so the pin stays put
   map.on("click", (e) => {
     if (!e.originalEvent.target.closest(".parking-marker, .destination-pin")) {
+      stopGpsTracking();
       setSearchCenter(e.lngLat);
     }
   });
 
   map.on("load", () => {
     setupMapLayers();
-    loadSegments();   // pre-load so first tap is instant
+    // Load segments then immediately start GPS tracking — no tap required
+    loadSegments().then(() => startGpsTracking());
   });
 }
 
@@ -530,6 +572,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("sheet-close")?.addEventListener("click", closeSheet);
 
   document.getElementById("rec-close")?.addEventListener("click", () => {
+    stopGpsTracking();
     document.getElementById("recommendations-panel").classList.remove("visible");
     parkingMarkers.forEach((m) => m.remove());
     parkingMarkers = [];
@@ -561,6 +604,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ---------------------------------------------------------------------------
 
 function demoMode(lat, lng, label) {
+  stopGpsTracking(); // fixed demo location — don't let GPS override it
   map.flyTo({ center: [lng, lat], zoom: 15, speed: 1.2 });
 
   function activate() {
