@@ -657,8 +657,9 @@ function toggleOverlay() {
   const vis = overlayVisible ? "visible" : "none";
   map.setLayoutProperty("parking-lines-glow", "visibility", vis);
   map.setLayoutProperty("parking-lines",      "visibility", vis);
+  // Sync the toggle switch aria-checked (global state — persists across Level 1 visits)
   const btn = document.getElementById("btn-overlay");
-  if (btn) btn.textContent = overlayVisible ? "Hide road overlay" : "Show all roads";
+  if (btn) btn.setAttribute("aria-checked", String(overlayVisible));
 }
 
 // ---------------------------------------------------------------------------
@@ -721,7 +722,7 @@ function initMap() {
     showUserHeading:   false,
   });
   map.addControl(geolocate, "top-right");
-  map.addControl(new mapboxgl.NavigationControl(), "top-right");
+  // NavigationControl (zoom + compass) removed — pinch handles zoom on mobile
 
   // Manual GPS button — restart continuous tracking from this fix
   geolocate.on("geolocate", (e) => {

@@ -23,41 +23,28 @@
   <body>
 
     <!-- ------------------------------------------------------------------ -->
-    <!-- Header                                                               -->
-    <!-- ------------------------------------------------------------------ -->
-    <header class="app-header">
-      <div class="logo">
-        <span class="logo-text">Parkd-In</span>
-        <span class="logo-accent">PREDICTIVE</span>
-      </div>
-      <div class="status-badge">
-        <span class="status-dot"></span>
-        <span class="status-label">Live Predictions</span>
-      </div>
-    </header>
-
-    <!-- ------------------------------------------------------------------ -->
-    <!-- Map                                                                  -->
+    <!-- Full-bleed map — no header bar                                      -->
     <!-- ------------------------------------------------------------------ -->
     <main id="map-container">
       <div id="map"></div>
 
-      <!-- Top-left utility panel: overlay toggle + demo only -->
-      <div id="window-panel">
-        <button id="btn-overlay" class="overlay-toggle">Show all roads</button>
-        <button id="btn-demo" class="overlay-toggle demo-btn">Demo</button>
+      <!-- Floating top-left: logo pill + demo button -->
+      <div id="top-bar">
+        <div id="logo-pill">
+          <span class="logo-text">Parkd-In</span>
+        </div>
+        <button id="btn-demo" class="demo-float-btn">Demo</button>
       </div>
 
       <!-- ---------------------------------------------------------------- -->
-      <!-- Single bottom sheet — Level 0 (glance) / 1 (list) / 2 (detail)  -->
+      <!-- Single bottom sheet — Level 0 / 1 / 2                           -->
       <!-- ---------------------------------------------------------------- -->
       <div id="bottom-sheet" class="sheet-hidden">
 
-        <!-- Drag handle — tap or swipe to navigate levels -->
+        <!-- Drag handle -->
         <div class="sheet-handle" id="sheet-handle"></div>
 
-        <!-- ── Level 0 ─────────────────────────────────────────────────── -->
-        <!-- Collapsed glance card: tier chip · street name · walk time     -->
+        <!-- ── Level 0 ── glance card ──────────────────────────────────── -->
         <div class="sheet-l0">
           <div class="glance-row" id="glance-row">
             <div class="tier-chip" id="glance-tier"></div>
@@ -69,9 +56,10 @@
           </div>
         </div>
 
-        <!-- ── Level 1 ─────────────────────────────────────────────────── -->
-        <!-- Top-5 results list + time window pill                          -->
+        <!-- ── Level 1 ── results + overlay controls ───────────────────── -->
         <div class="sheet-l1">
+
+          <!-- Fixed header + time pill (do not scroll) -->
           <div class="l1-header">
             <div class="l1-title-row">
               <span class="l1-title">Nearest parking</span>
@@ -80,7 +68,6 @@
             <button class="sheet-x" id="rec-close" aria-label="Close">&#xD7;</button>
           </div>
 
-          <!-- Time window segmented control (thumb-reachable, contextual) -->
           <div class="time-pill-wrap">
             <div class="time-pill" role="group" aria-label="Prediction window">
               <button class="time-btn" data-mins="5"  aria-pressed="false">5 min</button>
@@ -89,11 +76,62 @@
             </div>
           </div>
 
-          <ul class="result-list" id="rec-list"></ul>
-        </div>
+          <!-- Scrollable area: results → overlay toggle → legend → source -->
+          <div class="l1-scroll">
 
-        <!-- ── Level 2 ─────────────────────────────────────────────────── -->
-        <!-- Segment detail: prediction grid, Navigate, report expander     -->
+            <ul class="result-list" id="rec-list"></ul>
+
+            <!-- Road overlay section (below results, scroll to discover) -->
+            <div class="l1-overlay-section">
+
+              <div class="overlay-divider"></div>
+
+              <div class="overlay-toggle-row">
+                <span class="overlay-toggle-label">Show all roads</span>
+                <button
+                  id="btn-overlay"
+                  class="toggle-switch"
+                  role="switch"
+                  aria-checked="false"
+                  aria-label="Show all roads overlay"
+                >
+                  <span class="toggle-thumb"></span>
+                </button>
+              </div>
+
+              <div class="overlay-legend">
+                <p class="legend-title">Road availability key</p>
+                <div class="legend-items">
+                  <div class="legend-item">
+                    <span class="legend-line" style="background:var(--tierA)"></span>
+                    <span class="legend-label">Very likely free</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-line" style="background:var(--tierB)"></span>
+                    <span class="legend-label">Likely free</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-line" style="background:var(--tierC)"></span>
+                    <span class="legend-label">Mixed availability</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-line" style="background:var(--tierD)"></span>
+                    <span class="legend-label">Usually busy</span>
+                  </div>
+                </div>
+                <p class="legend-source">
+                  Predictions based on Camden CPZ enforcement patterns &amp; crowd reports
+                  &middot; Road data: OpenStreetMap contributors
+                </p>
+              </div>
+
+            </div><!-- /l1-overlay-section -->
+
+          </div><!-- /l1-scroll -->
+
+        </div><!-- /sheet-l1 -->
+
+        <!-- ── Level 2 ── segment detail ───────────────────────────────── -->
         <div class="sheet-l2">
           <div class="l2-topbar">
             <button class="sheet-back" id="sheet-back">&#8249; Back</button>
@@ -107,7 +145,6 @@
               <div id="sheet-walk"></div>
             </div>
 
-            <!-- 5 / 10 / 15 min prediction grid -->
             <div class="pred-grid">
               <div class="pred-cell">
                 <div class="pred-label">5 min</div>
@@ -128,12 +165,10 @@
 
             <div id="sheet-hint-text"></div>
 
-            <!-- Primary CTA -->
             <a id="sheet-navigate" href="#" target="_blank" rel="noopener" class="primary-btn">
               Navigate here
             </a>
 
-            <!-- Crowd-report (secondary expander — lower priority than Navigate) -->
             <div class="report-expander">
               <button class="report-toggle" id="report-toggle" aria-expanded="false">
                 <span>Report parking status</span>
@@ -155,7 +190,7 @@
 
       </div><!-- /bottom-sheet -->
 
-      <!-- Toast notification (slide-up pill) -->
+      <!-- Toast notification -->
       <div id="toast" class="toast" aria-live="polite"></div>
 
     </main>
