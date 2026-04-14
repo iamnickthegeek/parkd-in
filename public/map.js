@@ -530,4 +530,30 @@ document.addEventListener("DOMContentLoaded", () => {
   );
 
   document.getElementById("btn-overlay")?.addEventListener("click", toggleOverlay);
+
+  document.getElementById("btn-demo")?.addEventListener("click", () =>
+    demoMode(51.5391, -0.1426, "Demo: showing parking near Camden Town")
+  );
 });
+
+// ---------------------------------------------------------------------------
+// Demo mode — fly to a preset Camden coordinate and trigger search
+// ---------------------------------------------------------------------------
+
+function demoMode(lat, lng, label) {
+  map.flyTo({ center: [lng, lat], zoom: 15, speed: 1.2 });
+
+  function activate() {
+    setSearchCenter({ lat, lng });
+    const toast = document.getElementById("report-status");
+    toast.textContent = label;
+    toast.style.display = "block";
+    setTimeout(() => { toast.style.display = "none"; }, 3000);
+  }
+
+  if (allSegments.length > 0) {
+    activate();
+  } else {
+    loadSegments().then(activate);
+  }
+}
