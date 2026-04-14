@@ -23,7 +23,7 @@
       "dest": "/public/tiles/$1"
     },
     {
-      "src": "/(.*\\.(js|css|html|pbf|ico|png|svg))",
+      "src": "/(.*\\.(js|css|html|json|pbf|ico|png|svg))",
       "dest": "/public/$1"
     },
     {
