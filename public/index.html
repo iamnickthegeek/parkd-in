@@ -6,13 +6,13 @@
     <title>Parkd-In | Predictive Parking Assistant</title>
     <meta
       name="description"
-      content="Predictive street parking availability in London. Tap the map or use GPS to find the best spot near your destination."
+      content="Predictive street parking availability in London. GPS-first, zero-tap best spot."
     />
     <!-- Google Fonts: Inter & Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;900&display=swap"
       rel="stylesheet"
     />
     <!-- Mapbox GL JS -->
@@ -30,8 +30,8 @@
         <span class="logo-text">Parkd-In</span>
         <span class="logo-accent">PREDICTIVE</span>
       </div>
-      <div class="status-badge" id="app-status">
-        <span class="status-dot green"></span>
+      <div class="status-badge">
+        <span class="status-dot"></span>
         <span class="status-label">Live Predictions</span>
       </div>
     </header>
@@ -42,85 +42,121 @@
     <main id="map-container">
       <div id="map"></div>
 
-      <!-- ---------------------------------------------------------------- -->
-      <!-- Top-left: time window selector                                    -->
-      <!-- ---------------------------------------------------------------- -->
+      <!-- Top-left utility panel: overlay toggle + demo only -->
       <div id="window-panel">
-        <label for="window-select">Available in</label>
-        <select id="window-select">
-          <option value="5">5 min</option>
-          <option value="10" selected>10 min</option>
-          <option value="15">15 min</option>
-        </select>
         <button id="btn-overlay" class="overlay-toggle">Show all roads</button>
         <button id="btn-demo" class="overlay-toggle demo-btn">Demo</button>
       </div>
 
       <!-- ---------------------------------------------------------------- -->
-      <!-- Bottom: tap-to-search hint (hidden once search centre is set)    -->
+      <!-- Single bottom sheet — Level 0 (glance) / 1 (list) / 2 (detail)  -->
       <!-- ---------------------------------------------------------------- -->
-      <div id="search-hint">
-        <span>&#8982;</span> Tap the map or press GPS to find parking nearby
-      </div>
+      <div id="bottom-sheet" class="sheet-hidden">
 
-      <!-- ---------------------------------------------------------------- -->
-      <!-- Recommendations panel (slides up after search centre is set)     -->
-      <!-- ---------------------------------------------------------------- -->
-      <div id="recommendations-panel">
-        <div id="rec-header">
-          <div id="rec-title-group">
-            <span id="rec-title">Nearest parking</span>
-            <span id="rec-subtitle">500 m radius</span>
-          </div>
-          <button id="rec-close" aria-label="Close">&times;</button>
-        </div>
-        <ul id="rec-list"></ul>
-      </div>
+        <!-- Drag handle — tap or swipe to navigate levels -->
+        <div class="sheet-handle" id="sheet-handle"></div>
 
-      <!-- ---------------------------------------------------------------- -->
-      <!-- Bottom-sheet: segment detail (slides up on marker / list tap)    -->
-      <!-- ---------------------------------------------------------------- -->
-      <div id="detail-sheet">
-        <button id="sheet-close" aria-label="Close">&times;</button>
-
-        <div id="sheet-header">
-          <div id="sheet-street">—</div>
-          <div id="sheet-walk"></div>
-        </div>
-
-        <div id="sheet-predictions">
-          <div class="pred-col">
-            <div class="pred-label">5 min</div>
-            <div class="pred-val" id="sheet-5min">—</div>
-          </div>
-          <div class="pred-col pred-col--mid">
-            <div class="pred-label">10 min</div>
-            <div class="pred-val" id="sheet-10min">—</div>
-          </div>
-          <div class="pred-col">
-            <div class="pred-label">15 min</div>
-            <div class="pred-val" id="sheet-15min">—</div>
+        <!-- ── Level 0 ─────────────────────────────────────────────────── -->
+        <!-- Collapsed glance card: tier chip · street name · walk time     -->
+        <div class="sheet-l0">
+          <div class="glance-row" id="glance-row">
+            <div class="tier-chip" id="glance-tier"></div>
+            <div class="glance-info">
+              <div class="glance-street" id="glance-street">Finding parking…</div>
+              <div class="glance-sub"    id="glance-sub"></div>
+            </div>
+            <div class="glance-walk" id="glance-walk"></div>
           </div>
         </div>
 
-        <div id="sheet-hint-text"></div>
-
-        <div id="sheet-actions">
-          <a id="sheet-navigate" href="#" target="_blank" rel="noopener" class="btn-nav">
-            Navigate here
-          </a>
-          <div id="sheet-report-btns">
-            <button id="btn-parked"    class="btn-report btn-parked">I Parked</button>
-            <button id="btn-left"      class="btn-report btn-left">I Left</button>
-            <button id="btn-searching" class="btn-report btn-searching">Still Busy</button>
+        <!-- ── Level 1 ─────────────────────────────────────────────────── -->
+        <!-- Top-5 results list + time window pill                          -->
+        <div class="sheet-l1">
+          <div class="l1-header">
+            <div class="l1-title-row">
+              <span class="l1-title">Nearest parking</span>
+              <span class="l1-subtitle">500 m radius</span>
+            </div>
+            <button class="sheet-x" id="rec-close" aria-label="Close">&#xD7;</button>
           </div>
-        </div>
-      </div>
 
-      <!-- ---------------------------------------------------------------- -->
-      <!-- Report status toast                                               -->
-      <!-- ---------------------------------------------------------------- -->
-      <div id="report-status"></div>
+          <!-- Time window segmented control (thumb-reachable, contextual) -->
+          <div class="time-pill-wrap">
+            <div class="time-pill" role="group" aria-label="Prediction window">
+              <button class="time-btn" data-mins="5"  aria-pressed="false">5 min</button>
+              <button class="time-btn" data-mins="10" aria-pressed="true" >10 min</button>
+              <button class="time-btn" data-mins="15" aria-pressed="false">15 min</button>
+            </div>
+          </div>
+
+          <ul class="result-list" id="rec-list"></ul>
+        </div>
+
+        <!-- ── Level 2 ─────────────────────────────────────────────────── -->
+        <!-- Segment detail: prediction grid, Navigate, report expander     -->
+        <div class="sheet-l2">
+          <div class="l2-topbar">
+            <button class="sheet-back" id="sheet-back">&#8249; Back</button>
+            <button class="sheet-x"   id="sheet-close" aria-label="Close">&#xD7;</button>
+          </div>
+
+          <div class="l2-scroll">
+
+            <div class="l2-heading">
+              <div id="sheet-street">—</div>
+              <div id="sheet-walk"></div>
+            </div>
+
+            <!-- 5 / 10 / 15 min prediction grid -->
+            <div class="pred-grid">
+              <div class="pred-cell">
+                <div class="pred-label">5 min</div>
+                <div class="pred-tier" id="sheet-5min-tier"></div>
+                <div class="pred-pct"  id="sheet-5min"></div>
+              </div>
+              <div class="pred-cell pred-cell--mid">
+                <div class="pred-label">10 min</div>
+                <div class="pred-tier" id="sheet-10min-tier"></div>
+                <div class="pred-pct"  id="sheet-10min"></div>
+              </div>
+              <div class="pred-cell">
+                <div class="pred-label">15 min</div>
+                <div class="pred-tier" id="sheet-15min-tier"></div>
+                <div class="pred-pct"  id="sheet-15min"></div>
+              </div>
+            </div>
+
+            <div id="sheet-hint-text"></div>
+
+            <!-- Primary CTA -->
+            <a id="sheet-navigate" href="#" target="_blank" rel="noopener" class="primary-btn">
+              Navigate here
+            </a>
+
+            <!-- Crowd-report (secondary expander — lower priority than Navigate) -->
+            <div class="report-expander">
+              <button class="report-toggle" id="report-toggle" aria-expanded="false">
+                <span>Report parking status</span>
+                <span class="report-chevron" id="report-chevron">&#8250;</span>
+              </button>
+              <div class="report-body" id="report-body" hidden>
+                <div class="report-btns">
+                  <button id="btn-parked"    class="btn-report">I Parked</button>
+                  <button id="btn-left"      class="btn-report">I Left</button>
+                  <button id="btn-searching" class="btn-report">Still Busy</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="report-status"></div>
+
+          </div><!-- /l2-scroll -->
+        </div><!-- /sheet-l2 -->
+
+      </div><!-- /bottom-sheet -->
+
+      <!-- Toast notification (slide-up pill) -->
+      <div id="toast" class="toast" aria-live="polite"></div>
 
     </main>
 
