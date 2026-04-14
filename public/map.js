@@ -529,6 +529,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("sheet-close")?.addEventListener("click", closeSheet);
 
+  document.getElementById("rec-close")?.addEventListener("click", () => {
+    document.getElementById("recommendations-panel").classList.remove("visible");
+    parkingMarkers.forEach((m) => m.remove());
+    parkingMarkers = [];
+    if (destinationMarker) { destinationMarker.remove(); destinationMarker = null; }
+    searchCenter = null;
+    clearInterval(refreshTimer);
+    document.getElementById("search-hint").classList.remove("hidden");
+  });
+
   document.getElementById("btn-parked")?.addEventListener("click", () =>
     reportEvent("PARKED")
   );

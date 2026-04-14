@@ -214,11 +214,25 @@ h1, h2, h3, .logo-text {
 #rec-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   margin-bottom: 12px;
 }
-#rec-title   { font-size: 15px; font-weight: 600; }
-#rec-subtitle { font-size: 12px; color: var(--text-muted); }
+
+#rec-title-group { display: flex; align-items: baseline; gap: 8px; }
+#rec-title       { font-size: 15px; font-weight: 600; }
+#rec-subtitle    { font-size: 12px; color: var(--text-muted); }
+
+#rec-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+#rec-close:hover { color: var(--text-primary); }
 
 #rec-list {
   list-style: none;
