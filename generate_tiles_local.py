@@ -44,15 +44,11 @@ ZOOM = 14
 # Camden tile grid at zoom 14
 TILE_GRID = [(ZOOM, x, y) for x in range(8183, 8189) for y in range(5443, 5448)]
 
-# Public browser token (URL-restricted to predictiveparking.vercel.app).
-# For server-side tile generation, override via MAPBOX_TOKEN env var using
-# an unrestricted token — Mapbox rejects URL-restricted tokens from requests
-# that carry no Referer header (e.g. GitHub Actions, local scripts).
-_BROWSER_TOKEN = (
-    "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21udTZ5YTVkMDhuejJxc2N6MjZzb2dwNSJ9"
-    ".GNQEyAD5HwhNb42cznksOQ"
-)
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", _BROWSER_TOKEN)
+# Set MAPBOX_TOKEN in your environment (or .env) before running this script.
+# Use an unrestricted secret token here (not the URL-restricted browser token)
+# because server-side requests carry no Referer header and Mapbox will reject them.
+# Get a token at https://mapbox.com → Tokens.
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "YOUR_MAPBOX_SECRET_TOKEN")
 MAPBOX_TILESET = "mapbox.mapbox-streets-v8"
 
 # Road class → (hex color for tile overlay, base probability 0–100).

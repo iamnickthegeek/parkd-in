@@ -13,7 +13,7 @@
 3. Go to **Environment** tab
 4. Add these variables:
    - `TFL_API_KEY` = (from your .env file)
-   - `CORS_ORIGINS` = `https://pub-a08e50fbe62f446d8347988ef97e0266.r2.dev`
+   - `CORS_ORIGINS` = `https://YOUR_R2_PUBLIC_URL.r2.dev`
    - `ENVIRONMENT` = `production`
 5. All other vars should already be set from initial provisioning
 

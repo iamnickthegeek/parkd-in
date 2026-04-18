@@ -10,8 +10,9 @@
  *   /api/v1/parking/event — crowd reports (gracefully skipped if API offline)
  */
 
-mapboxgl.accessToken =
-  "pk.eyJ1Ijoibmlja3RoZWdlZWsiLCJhIjoiY21udTZ5YTVkMDhuejJxc2N6MjZzb2dwNSJ9.GNQEyAD5HwhNb42cznksOQ";
+// Set your Mapbox public token here, or inject via your build process.
+// Get one at https://mapbox.com → Tokens. Restrict it to your domain in the Mapbox dashboard.
+mapboxgl.accessToken = "YOUR_MAPBOX_PUBLIC_TOKEN";
 
 // ---------------------------------------------------------------------------
 // Constants

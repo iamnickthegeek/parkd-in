@@ -55,3 +55,6 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 .vercel
+
+# Claude Code local settings
+.claude/

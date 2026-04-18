@@ -1,8 +1,37 @@
 # Parkd-In — Developer Reference
 
+> **Open-source portfolio project.** Built as an MVP to explore predictive street parking for London Borough of Camden. The codebase demonstrates a FastAPI + PostGIS + Mapbox GL JS stack with real open-data ingestion and a heuristic prediction engine. Feel free to fork and adapt.
+
+---
+
+### Available for freelance work
+
+This project was designed and built end-to-end as a solo MVP. If you have an idea you want to pressure-test or build, I can help with:
+
+- **Idea critique** — stress-testing your concept: data availability, technical feasibility, scope, what to cut for v1
+- **System architecture** — translating a product idea into a concrete technical design before any code is written
+- **MVP development** — full-stack builds: API, database, frontend, deployment pipeline, the lot
+- **Internal tools & data pipelines** — dashboards, automation, open-data integrations, spatial/mapping features
+
+**Get in touch:** [Twitter/X: iamnickthegeek](https://x.com/iamnickthegeek)
+
+---
+
 ## What the software does
 
-Parkd-In is a web app that shows a map of Camden, London with street segments colour-coded by estimated parking availability: green (likely free), yellow (uncertain), red (likely full). Users can tap a segment to see a probability score and submit reports ("I parked here", "I left a space", "nothing free here") which feed back into the predictions.
+Parkd-In is a mobile-first web app that shows a map of Camden, London with street segments colour-coded by estimated parking availability. On load, it requests the user's GPS position and automatically surfaces the top 5 nearest parking spots ranked by probability. Users can submit crowd reports ("I Parked Here", "I Left a Space", "Still Busy") which feed back into the predictions.
+
+**The interface**
+
+A single bottom sheet slides up from the bottom of the full-screen map:
+
+| Sheet level | What it shows |
+|---|---|
+| **Glance** (collapsed) | Top street name + walk time at a glance |
+| **List** (half-open) | Top 5 ranked results with tier chips, time window selector (5 / 10 / 15 min), road overlay toggle |
+| **Detail** (full) | Prediction grid at all three windows, Navigate button, crowd report buttons |
+
+Segments are scored into four tiers: **Very likely** · **Likely** · **Mixed** · **Unlikely**, based on road class and time-of-day adjustment computed in the browser.
 
 **How the prediction works**
 
@@ -19,14 +48,23 @@ The output is a probability between 0 and 1 (displayed as 0–100%) per street s
 
 **What map tiles are**
 
-Map tiles are small binary files (`.pbf` format) that Mapbox GL JS — the mapping library used in the browser — downloads and renders as coloured lines on the map. They are pre-generated rather than calculated live per request, which makes the map fast. Each tile covers a geographic area at a fixed zoom level. The app uses zoom level 14, which gives street-level detail, and covers Camden with 30 tiles.
+Map tiles are small binary files (`.pbf` format) that Mapbox GL JS — the mapping library used in the browser — downloads and renders as coloured lines on the map. They are pre-generated rather than calculated live per request, which makes the map fast. Each tile covers a geographic area at a fixed zoom level. The app uses zoom level 14, which gives street-level detail, and covers Camden with ~19 tiles.
 
 **The two operating modes**
 
 | Mode | What runs | Who it's for |
 |---|---|---|
-| `LOCAL_MODE=true` | FastAPI backend + tiles from disk, no database | Development, Vercel deployment |
+| `LOCAL_MODE=true` | FastAPI backend + tiles served from disk, no database | Development, Vercel deployment |
 | `LOCAL_MODE=false` | Full stack: Supabase database, Redis queue, R2 tile CDN | Live production |
+
+---
+
+## Screenshots
+
+| Map — ranked markers | Results list | Street detail |
+|:---:|:---:|:---:|
+| ![Map view with ranked parking markers](docs/screenshots/1.png) | ![Nearest parking list with time window selector](docs/screenshots/2.png) | ![Street detail with 5/10/15 min predictions](docs/screenshots/3.png) |
+| GPS centres the map; top 5 spots shown as ranked markers. Glance card at bottom shows the best option. | List view with 5 / 10 / 15 min window selector and probability tier for each result. | Full detail: prediction grid, road type hint, Navigate button, and crowd-report controls. |
 
 ---
 
@@ -34,6 +72,8 @@ Map tiles are small binary files (`.pbf` format) that Mapbox GL JS — the mappi
 
 ```
 Browser (Mapbox GL JS)
+  │
+  ├── GET /segments.json ──────────→ Vercel CDN (19,192 Camden road centroids + probabilities)
   │
   ├── GET /tiles/{z}/{x}/{y}.pbf ──→ Vercel CDN (static .pbf files in public/tiles/)
   │
@@ -46,6 +86,8 @@ Browser (Mapbox GL JS)
                    with PostGIS      queue + cache)    production)
                    spatial queries)
 ```
+
+**`public/segments.json`** is committed to the repo and served by Vercel CDN. It contains 19,192 deduplicated Camden road centroids with base probabilities. The frontend reads this on load to rank nearby parking spots — no database round-trip required. It is regenerated daily by the GitHub Actions tile refresh workflow.
 
 **PostGIS** is a spatial extension to PostgreSQL that understands geographic shapes — it lets the database answer questions like "which parking bays are within 30 metres of this road segment".
 
@@ -103,8 +145,26 @@ In `LOCAL_MODE` the scheduler is disabled entirely.
 
 ### Provisioning Mapbox
 
-1. Log in at https://mapbox.com
-2. Go to **Tokens** and copy your **Default public token** (starts with `pk.`)
+Mapbox requires **two separate tokens** — a browser token and a server token. They are different because Mapbox can restrict tokens by referring URL, and GitHub Actions requests carry no `Referer` header.
+
+#### Token 1 — Browser token (URL-restricted)
+
+1. Log in at https://mapbox.com → **Tokens** → **Create a token**
+2. Under **Token restrictions**, add your deployed domain (e.g. `https://your-app.vercel.app`) to the allowed URLs
+3. Copy the token (starts with `pk.`)
+4. Put it in two places:
+   - `.env` as `MAPBOX_API_KEY=pk.your_token`
+   - Hardcoded in `public/map.js` and `frontend/map.js` where it says `YOUR_MAPBOX_PUBLIC_TOKEN`
+
+#### Token 2 — Server token (unrestricted, for GitHub Actions)
+
+1. In Mapbox → **Tokens** → **Create a token**
+2. Leave URL restrictions **empty** (this token is never sent from a browser)
+3. Copy the token
+4. Go to your GitHub repository → **Settings → Secrets and variables → Actions → New repository secret**
+5. Name: `MAPBOX_TOKEN`, Value: the unrestricted token
+
+> **Why two tokens?** The daily tile-refresh workflow (`refresh-tiles.yml`) runs `generate_tiles_local.py` on a GitHub Actions runner, which downloads Mapbox vector tiles. Those requests have no `Referer` header, so Mapbox rejects URL-restricted tokens with a 401. An unrestricted token is required for server-side use.
 
 ### Provisioning TfL API
 
@@ -128,7 +188,7 @@ Expected output: `Python 3.11.x`
 ### 2. Get the code
 
 ```
-git clone https://github.com/iamnickthegeek/parkd-in.git
+git clone https://github.com/YOUR_USERNAME/parkd-in.git
 cd parkd-in/predictive_parking
 ```
 
@@ -216,7 +276,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 **Step 3 — Start the frontend:**
 ```
-cd frontend
+cd public
 python -m http.server 3000
 ```
 
@@ -245,7 +305,7 @@ python generate_tiles.py
 | `alembic upgrade head` | Apply all pending database migrations (create/alter tables). Run once after cloning, and after any schema change. |
 | `alembic downgrade base` | Undo all migrations (drops all tables). Destructive — use only to reset a dev database. |
 | `python ingestion/run_ingestion.py` | Download and import OSM roads, parking bays, and CPZ zones into the database. Takes 5–15 minutes on first run. |
-| `vercel deploy --scope iamnickthegeeks-projects --no-wait` | Deploy to Vercel manually. Usually not needed — pushes to GitHub trigger automatic deployment. |
+| `vercel deploy --no-wait` | Deploy to Vercel manually. Usually not needed — pushes to GitHub trigger automatic deployment. |
 | `git push origin HEAD` | Push code to GitHub, triggering an automatic Vercel deployment. |
 
 ### Keepalive ping (run periodically to prevent Supabase free-tier auto-pause)
@@ -396,6 +456,7 @@ pip install -r backend/requirements.txt
 Go to your GitHub repository → **Actions** tab → click the failed run → expand the failing step to read the error message.
 
 Common causes:
+- **`MAPBOX_TOKEN` secret not set** — the workflow needs an *unrestricted* Mapbox token in GitHub secrets (not the URL-restricted browser token). See the **Provisioning Mapbox** section for setup instructions.
 - Missing `cache/camden_osm.parquet` in the repo (re-commit it)
 - `generate_tiles_local.py` dependency not installed in the Action (check `requirements-vercel.txt` contains `geopandas`, `mapbox-vector-tile`, `pyarrow`, `shapely`, `pyproj`)
 - Workflow does not have write permission: go to **Settings → Actions → General → Workflow permissions** → set to "Read and write permissions"
@@ -439,13 +500,13 @@ Common causes:
 
 1. From `predictive_parking/`:
    ```
-   vercel deploy --scope YOUR_TEAM_SLUG --no-wait
+   vercel deploy --no-wait
    ```
    On first run this creates a Vercel project and links it to your GitHub repository.
 
 2. Every subsequent `git push origin HEAD` will automatically trigger a new deployment. No manual steps needed.
 
-3. The live URL will appear in `vercel ls --scope YOUR_TEAM_SLUG`.
+3. The live URL will appear in `vercel ls`.
 
 ### Setting environment variables on Vercel
 
